@@ -56,34 +56,40 @@ apps/
 > ⚠️ O impacto do SPOF e do bottleneck de processamento será analisado em testes de carga futuros.
 
 ---
-
-## 📡 Protocolo de Comunicação
-
-### Cliente → Servidor: Comando de Voto
-
-O cliente deve emitir o evento `cast_vote` com um payload textual delimitado por `|`:
-
-```
-CAST_VOTE|<token>|<opcao>
-```
-
-**Exemplo:**
-
-```
-CAST_VOTE|TK_USER_9942|opcao_A
-```
-
-### Servidor → Cliente: Notificação de Broadcast
-
-Ao registrar um voto com sucesso, o servidor emite imediatamente um payload JSON com o estado atualizado para o canal:
-
-```
-placar_atualizado_${sessao_id}
-```
-
-Todos os consoles de monitoramento conectados recebem a atualização via `io.emit()`.
-
+## 📡 Protocolo de Comunicação e Especificação de Payloads
+ 
+A comunicação entre os Terminais Clientes (React) e o Servidor Central (Express/Socket.io) é orientada a eventos e estruturada sob os seguintes contratos de mensagem:
+ 
 ---
+ 
+### 1. Evento: `cast_vote` — Client → Server
+ 
+| Campo | Valor |
+|---|---|
+| **Descrição** | Disparado pelo cliente para submeter um voto na assembleia |
+| **Tipo de Dado** | String de texto simples (Textual Pleno) |
+| **Delimitador** | `\|` (Pipeline) |
+| **Formato Estrito** | `CAST_VOTE\|<token>\|<opcao>` |
+| **Exemplo de Payload** | `CAST_VOTE\|TK_CONDOMINO_450\|opcao_B` |
+ 
+---
+ 
+### 2. Evento: `placar_atualizado` — Server → Broadcast (todos os clientes)
+ 
+| Campo | Valor |
+|---|---|
+| **Descrição** | Disparado pelo servidor imediatamente após o registro bem-sucedido de um voto válido |
+| **Tipo de Dado** | Objeto JSON |
+| **Canal** | `placar_atualizado_${sessao_id}` |
+ 
+**Exemplo de Payload:**
+ 
+```json
+{
+  "opcao_A": 4,
+  "opcao_B": 2
+}
+```
 
 ## 💾 Modelagem de Estado em Memória
 
