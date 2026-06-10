@@ -273,6 +273,87 @@ npm run dev --workspace=apps/web
 | Frontend (Next.js) | `http://localhost:3000` |
 | Backend (Express + Socket.io) | `http://localhost:4000` |
 
+
+## 🔒 4.1 Autenticação em Memória & Prevenção de Fraude (Funil de Verificação por Token)
+ 
+Esta seção detalha como o sistema gerencia a identidade dos clientes, previne votos duplos e processa a sincronização de estado estritamente dentro da camada de memória efêmera do servidor.
+ 
+---
+ 
+### 🔑 Estratégia de Autenticação por Token
+ 
+Para o escopo atual da arquitetura, o sistema evita handshakes persistentes ou consultas externas de sessão. A identidade é verificada **evento a evento**:
+ 
+- O identificador único do cliente (Token) é embutido diretamente na string do payload
+- A cada clique no botão de votação no frontend React, o cliente transmite o layout textual estrito: `CAST_VOTE|<token>|<opcao>`
+- O servidor atua como um **parser de stream**: ao receber o evento, abre o envelope, isola o `<token>` e executa imediatamente as regras de domínio
+---
+ 
+### 💾 Registros Voláteis em Memória
+ 
+Para gerenciar o rastreamento sem infraestrutura de banco de dados, o backend Express/Socket.io mantém as seguintes estruturas em tempo de execução:
+ 
+| Estrutura | Tipo | Inicialização | Papel |
+|---|---|---|---|
+| `tokens_autorizados` | `string[]` | Populado no boot do servidor | Ledger de controle de acesso — lista todos os tokens legalmente registrados na sessão (ex.: `['TK_USER1', 'TK_USER2', 'TK_USER3']`) |
+| `tokens_que_ja_votaram` | `string[]` | Inicializado vazio `[]` | Ledger antifraude — barreira dinâmica contra votos duplos, atualizada a cada voto confirmado |
+ 
+---
+ 
+### ⚙️ Funil de Execução: Lógica Sequencial do Backend
+ 
+Quando uma string de payload (ex.: `CAST_VOTE|TK_USER1|opcao_A`) chega pela interface de rede WebSocket, o pipeline de validação sequencial dispara as seguintes operações:
+ 
+```text
+Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
+              │
+              ▼
+   ┌────────────────────────────────┐
+   │     Parsing da String          │ ──► Separa o payload pelo delimitador '|'
+   └────────────────────────────────┘
+              │
+              ▼
+   ┌────────────────────────────────┐
+   │  Verificação de Autorização    │ ──► .includes('TK_USER1') em tokens_autorizados
+   └────────────────────────────────┘     ❌ False: Rejeita com evento "Acesso Negado"
+              │ True
+              ▼
+   ┌────────────────────────────────┐
+   │  Bloqueio de Voto Duplo        │ ──► .includes('TK_USER1') em tokens_que_ja_votaram
+   └────────────────────────────────┘     ❌ True: Rejeita com evento "Fraude Detectada"
+              │ False
+              ▼
+   ┌────────────────────────────────┐
+   │  Commit do Voto & Registro     │ ──► 1. Incrementa placar_atual['opcao_A'] em +1
+   └────────────────────────────────┘     2. Insere 'TK_USER1' em tokens_que_ja_votaram
+              │
+              ▼
+   Broadcast disparado para todos os sockets (placar_atualizado)
+```
+ 
+**Detalhamento de cada fase:**
+ 
+**Validação — Step 1 (Autenticação):** O backend executa uma busca por índice (`.includes(token)`) sobre o vetor `tokens_autorizados`. Se o identificador estiver ausente, a execução termina imediatamente, disparando um evento de erro de volta apenas ao cliente infrator.
+ 
+**Validação — Step 2 (Prevenção de Duplicidade):** O backend verifica se o token extraído já está presente (`.includes(token)`) no bloco histórico `tokens_que_ja_votaram`. Se retornar `true`, a transação é reconhecida como tentativa de fraude e bloqueada.
+ 
+**Fase de Commit:** Satisfeitas as condições de execução segura, a opção escolhida incrementa o contador global em `+1` e o token é inserido (`.push(token)`) no ledger `tokens_que_ja_votaram`. A partir deste milissegundo, qualquer pacote recorrente contendo este token é sistematicamente negado.
+ 
+---
+ 
+### 🧠 Arquitetura Efêmera: Sem Banco de Dados
+ 
+Em conformidade estrita com os requisitos gerais, a arquitetura depende **100% de Gerenciamento de Estado em RAM Volátil**.
+ 
+| Aspecto | Comportamento |
+|---|---|
+| **Armazenamento** | Nenhum banco de dados (SQL, NoSQL ou arquivos locais) conectado nesta fase |
+| **Reinicialização** | Se o processo Node.js for encerrado ou reiniciado, o estado é completamente zerado — votos compilados e `tokens_que_ja_votaram` são apagados |
+| **Trade-off** | Velocidade máxima de acesso ao estado vs. ausência de persistência entre sessões |
+ 
+> Este ciclo de vida exclusivamente em memória é o padrão esperado para esta fase do sistema, evidenciando o trade-off entre velocidade e persistência em condições distribuídas.
+ 
+
 ### Testes
 
 ```bash
