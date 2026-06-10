@@ -1,10 +1,10 @@
-# 🗳️ CIN0143 — Digital Assembly Voting System
+# CIN0143 — Digital Assembly Voting System
 
 Sistema de votação digital distribuído para assembleias de condomínios ou corporativas, com suporte a múltiplos clientes simultâneos e sessões em tempo real.
 
 ---
 
-## 🔍 Visão Geral
+##  Visão Geral
 
 Este repositório contém a arquitetura, a documentação e o esqueleto base de um **Sistema de Votação Digital para Assembleias**, projetado para:
 
@@ -14,7 +14,7 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 
 ---
 
-## 🛠️ Stack & Justificativa Arquitetural
+##  Stack & Justificativa Arquitetural
 
 ### Visão Full Stack
 
@@ -36,7 +36,8 @@ apps/
 ├── web/      # Next.js — interface de votação e monitor de placar
 └── server/   # Node.js + Express + Socket.io — lógica central e estado
 ```
-
+* A estrutura está descrita detalhadamente no final do README
+  
 > A escolha pelo monorepo permite compartilhar tipos TypeScript entre frontend e backend, garantindo consistência nos contratos de mensagem (ex.: o formato `CAST_VOTE|<token>|<opcao>` é tipado uma única vez e reutilizado em ambas as camadas).
 
 ### Por que Socket.io em vez de raw sockets?
@@ -53,10 +54,10 @@ apps/
 | Reconexão automática em caso de falha de rede | Single Point of Failure (SPOF) em escala horizontal massiva |
 | Propagação de dados desacoplada | Sujeito a race conditions sob alta concorrência |
 
-> ⚠️ O impacto do SPOF e do bottleneck de processamento será analisado em testes de carga futuros.
+> TIRARA!!!!! O impacto do SPOF e do bottleneck de processamento será analisado em testes de carga futuros.
 
 ---
-## 📡 Protocolo de Comunicação e Especificação de Payloads
+##  Protocolo de Comunicação e Especificação de Payloads
  
 A comunicação entre os Terminais Clientes (React) e o Servidor Central (Express/Socket.io) é orientada a eventos e estruturada sob os seguintes contratos de mensagem:
  
@@ -91,7 +92,7 @@ A comunicação entre os Terminais Clientes (React) e o Servidor Central (Expres
 }
 ```
 
-## 💾 Modelagem de Estado em Memória
+##  Modelagem de Estado em Memória
 
 O servidor é a **única fonte de verdade**, mantendo as sessões ativas em memória volátil com o seguinte esquema:
 
@@ -111,12 +112,12 @@ O servidor é a **única fonte de verdade**, mantendo as sessões ativas em mem�
 |---|---|
 | `sessao_id` | Identificador único da assembleia em curso |
 | `placar_atual` | Contador em tempo real mapeando opções para totais de votos |
-| `tokens_autorizados` | Lista de controle de acesso (ACL) com tokens autorizados a votar |
+| `tokens_autorizados` | Lista de controle de acesso com tokens autorizados a votar |
 | `tokens_que_ja_votaram` | Ledger antifraude com tokens que já submeteram um voto |
 
 ---
 
-## ⚙️ Regras de Domínio & Lógica de Validação
+## Regras de Domínio & Lógica de Validação
 
 Ao receber um payload no listener `cast_vote`, o backend executa um funil de verificação sequencial:
 
@@ -128,13 +129,13 @@ Payload recebido
 │  Format Check                           │
 │  Conforma com CAST_VOTE|<token>|<opcao>?│
 └──────────────────┬──────────────────────┘
-                   │ ✅
+                   │ 
                    ▼
 ┌─────────────────────────────────────────┐
 │  Step 1 — Autenticação                  │
 │  <token> existe em tokens_autorizados?  │
 └──────────────────┬──────────────────────┘
-                   │ ✅
+                   │ 
                    ▼
 ┌─────────────────────────────────────────┐
 │  Step 2 — Controle de Duplicatas        │
@@ -160,9 +161,8 @@ Payload recebido
 
 ---
 
-## 🧪 Testes & Verificação
+##  Testes & Verificação
 
-> 🚧 Esta seção descreve o planejamento arquitetural para QA — a implementação será desenvolvida nas próximas entregas.
 
 ### Ferramentas
 
@@ -173,14 +173,14 @@ Payload recebido
 
 ---
 
-### ✅ Testes Unitários com Jest
+### Testes Unitários com Jest
 
 Os testes unitários cobrem as regras de domínio do pipeline de validação de forma isolada, sem dependência de rede ou estado externo.
 
 **Executar:**
 
 ```bash
-npm run test
+npm run test:coverage
 ```
 
 **Cenários planejados:**
@@ -192,18 +192,6 @@ npm run test
 | **C — Intrusão** | Token não listado tenta votar | Bloqueado no Step 1 — erro retornado |
 | **D — Payload malformado** | String fora do formato `CAST_VOTE\|<token>\|<opcao>` | Rejeitado no Format Check |
 
-**Exemplo de estrutura de teste:**
-
-```ts
-describe('VoteValidator', () => {
-  it('should accept a valid vote from an authorized token', () => { ... });
-  it('should reject a duplicate vote from the same token', () => { ... });
-  it('should reject an unauthorized token', () => { ... });
-  it('should reject a malformed payload string', () => { ... });
-});
-```
-
----
 
 ### ⚡ Testes de Carga & Concorrência com K6
 
@@ -227,13 +215,12 @@ k6 run tests/load/voting-stress.js
 **O que será monitorado:**
 
 - Race conditions no acesso concorrente ao estado em memória
-- Latência do event loop sob carga (p95, p99)
 - Consistência do placar após múltiplos votos simultâneos
 - Comportamento do servidor ao receber tokens duplicados em paralelo
 
 ---
 
-## 🚀 Como Executar
+##  Como Executar
 
 ### Pré-requisitos
 
@@ -259,28 +246,28 @@ npm run dev
 **Rodar apenas o backend (Express + Socket.io):**
 
 ```bash
-npm run dev --workspace=apps/server
+npm run dev 
 ```
 
 **Rodar apenas o frontend (Next.js):**
 
 ```bash
-npm run dev --workspace=apps/web
+npm run dev 
 ```
 
 | Serviço | URL padrão |
 |---|---|
 | Frontend (Next.js) | `http://localhost:3000` |
-| Backend (Express + Socket.io) | `http://localhost:4000` |
+| Backend (Express + Socket.io) | `http://localhost:3001` |
 
 
-## 🔒 4.1 Autenticação em Memória & Prevenção de Fraude (Funil de Verificação por Token)
+##  Autenticação em Memória & Prevenção de Fraude (Funil de Verificação por Token)
  
-Esta seção detalha como o sistema gerencia a identidade dos clientes, previne votos duplos e processa a sincronização de estado estritamente dentro da camada de memória efêmera do servidor.
+Esta seção detalha como o sistema gerencia a identidade dos clientes, previne votos duplos e processa a sincronização de estado estritamente dentro da memória do servidor.
  
 ---
  
-### 🔑 Estratégia de Autenticação por Token
+### Estratégia de Autenticação por Token
  
 Para o escopo atual da arquitetura, o sistema evita handshakes persistentes ou consultas externas de sessão. A identidade é verificada **evento a evento**:
  
@@ -289,18 +276,18 @@ Para o escopo atual da arquitetura, o sistema evita handshakes persistentes ou c
 - O servidor atua como um **parser de stream**: ao receber o evento, abre o envelope, isola o `<token>` e executa imediatamente as regras de domínio
 ---
  
-### 💾 Registros Voláteis em Memória
+### Registros Voláteis em Memória
  
 Para gerenciar o rastreamento sem infraestrutura de banco de dados, o backend Express/Socket.io mantém as seguintes estruturas em tempo de execução:
  
 | Estrutura | Tipo | Inicialização | Papel |
 |---|---|---|---|
-| `tokens_autorizados` | `string[]` | Populado no boot do servidor | Ledger de controle de acesso — lista todos os tokens legalmente registrados na sessão (ex.: `['TK_USER1', 'TK_USER2', 'TK_USER3']`) |
-| `tokens_que_ja_votaram` | `string[]` | Inicializado vazio `[]` | Ledger antifraude — barreira dinâmica contra votos duplos, atualizada a cada voto confirmado |
+| `tokens_autorizados` | `string[]` | Populado no servidor | Registro de controle de acesso — lista todos os tokens legalmente registrados na sessão (ex.: `['TK_USER1', 'TK_USER2', 'TK_USER3']`) |
+| `tokens_que_ja_votaram` | `string[]` | Inicializado vazio `[]` | Registro antifraude — barreira dinâmica contra votos duplos, atualizada a cada voto confirmado |
  
 ---
  
-### ⚙️ Funil de Execução: Lógica Sequencial do Backend
+###  Funil de Execução: Lógica Sequencial do Backend
  
 Quando uma string de payload (ex.: `CAST_VOTE|TK_USER1|opcao_A`) chega pela interface de rede WebSocket, o pipeline de validação sequencial dispara as seguintes operações:
  
@@ -315,12 +302,12 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
               ▼
    ┌────────────────────────────────┐
    │  Verificação de Autorização    │ ──► .includes('TK_USER1') em tokens_autorizados
-   └────────────────────────────────┘     ❌ False: Rejeita com evento "Acesso Negado"
+   └────────────────────────────────┘     False: Rejeita com evento "Acesso Negado"
               │ True
               ▼
    ┌────────────────────────────────┐
    │  Bloqueio de Voto Duplo        │ ──► .includes('TK_USER1') em tokens_que_ja_votaram
-   └────────────────────────────────┘     ❌ True: Rejeita com evento "Fraude Detectada"
+   └────────────────────────────────┘     True: Rejeita com evento "Fraude Detectada"
               │ False
               ▼
    ┌────────────────────────────────┐
@@ -337,21 +324,18 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
  
 **Validação — Step 2 (Prevenção de Duplicidade):** O backend verifica se o token extraído já está presente (`.includes(token)`) no bloco histórico `tokens_que_ja_votaram`. Se retornar `true`, a transação é reconhecida como tentativa de fraude e bloqueada.
  
-**Fase de Commit:** Satisfeitas as condições de execução segura, a opção escolhida incrementa o contador global em `+1` e o token é inserido (`.push(token)`) no ledger `tokens_que_ja_votaram`. A partir deste milissegundo, qualquer pacote recorrente contendo este token é sistematicamente negado.
+Satisfeitas as condições de execução segura, a opção escolhida incrementa o contador global em `+1` e o token é inserido (`.push(token)`) no registro `tokens_que_ja_votaram`. A partir disso,  qualquer pacote recorrente contendo este token é sistematicamente negado.
  
 ---
  
-### 🧠 Arquitetura Efêmera: Sem Banco de Dados
- 
-Em conformidade estrita com os requisitos gerais, a arquitetura depende **100% de Gerenciamento de Estado em RAM Volátil**.
+### Arquitetura 
+A arquitetura depende **do Gerenciamento de Estado em RAM **.
  
 | Aspecto | Comportamento |
 |---|---|
-| **Armazenamento** | Nenhum banco de dados (SQL, NoSQL ou arquivos locais) conectado nesta fase |
-| **Reinicialização** | Se o processo Node.js for encerrado ou reiniciado, o estado é completamente zerado — votos compilados e `tokens_que_ja_votaram` são apagados |
+| **Reinicialização** | Se o processo Node.js for encerrado ou reiniciado, o estado é completamente zerado - votos compilados e `tokens_que_ja_votaram` são apagados |
 | **Trade-off** | Velocidade máxima de acesso ao estado vs. ausência de persistência entre sessões |
  
-> Este ciclo de vida exclusivamente em memória é o padrão esperado para esta fase do sistema, evidenciando o trade-off entre velocidade e persistência em condições distribuídas.
  
 
 ### Testes
@@ -366,7 +350,7 @@ k6 run tests/load/voting-stress.js
 
 ---
 
-## 📂 Estrutura de Diretórios
+##  Estrutura de Diretórios
 
 ```
 ├── apps/
@@ -390,7 +374,3 @@ k6 run tests/load/voting-stress.js
 ```
 
 ---
-
-## 📄 Licença
-
-Projeto acadêmico — CIN0143.
