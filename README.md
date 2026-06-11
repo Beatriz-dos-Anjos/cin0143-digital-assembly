@@ -4,7 +4,7 @@ Sistema de votação digital distribuído para assembleias de condomínios ou co
 
 ---
 
-##  Visão Geral
+##  1. Visão Geral
 
 Este repositório contém a arquitetura, a documentação e o esqueleto base de um **Sistema de Votação Digital para Assembleias**, projetado para:
 
@@ -14,9 +14,9 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 
 ---
 
-##  Stack & Justificativa Arquitetural
+##  2. Stack & Justificativa Arquitetural
 
-### Visão Full Stack
+### 2.1 Visão Full Stack
 
 | Camada | Tecnologia | Papel |
 |---|---|---|
@@ -27,7 +27,7 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 | **Testes Unitários** | Jest | Validação de regras de domínio e lógica de negócio |
 | **Testes de Carga** | K6 | Stress e concorrência de conexões WebSocket |
 
-### Estrutura Monorepo
+### 2.2 Estrutura Monorepo
 
 O projeto é organizado como um **monorepo**, separando claramente as responsabilidades:
 
@@ -40,7 +40,7 @@ apps/
   
 > A escolha pelo monorepo permite compartilhar tipos TypeScript entre frontend e backend, garantindo consistência nos contratos de mensagem (ex.: o formato `CAST_VOTE|<token>|<opcao>` é tipado uma única vez e reutilizado em ambas as camadas).
 
-## Por que Socket.io para o Sistema de Votação?
+## 2.3 Por que Socket.io para o Sistema de Votação?
 
 Comunicação orientada a eventos e bidirecional em tempo real - WebSockets habilitam comunicação full-duplex e não-bloqueante, essencial para uma votação distribuída onde múltiplos clientes precisam receber atualizações do placar instantaneamente conforme os votos chegam ao servidor.
 
@@ -49,17 +49,17 @@ Baixo acoplamento via orientação a mensagens - o paradigma de troca de mensage
 Controle centralizado de sessão de votação- Socket.io vincula cada cliente a uma sessão persistente no servidor, permitindo validar tokens e rastrear quem já votou de forma segura e atômica. O servidor é a única fonte de verdade, impedindo race conditions e garantindo que um token jamais vote duas vezes, mesmo sob alta concorrência.
 
 **Prós:** Suporte nativo a broadcasting em massa permite que o placar seja propagado para todos os clientes conectados simultaneamente. Reconexão automática em caso de falha de rede mantém a sessão de votação estável mesmo com oscilações de conectividade. Validação sequencial e atômica de votos garante integridade total da contagem, impedindo duplicatas. Placar sincronizado para todos os clientes em menos de 100ms, proporcionando experiência em tempo real.
-## Por que WebSocket em vez de MQTT?
+## 2.4 Por que WebSocket em vez de MQTT?
 
 WebSocket (Socket.io) garante **validação atômica de votos** em um único servidor centralizado, impedindo race conditions. MQTT seria assíncrono e desacoplado, tornando impossível garantir que um token não vota duas vezes em alta concorrência. Além disso, Socket.io oferece **broadcast nativo de baixíssima latência**  para sincronizar o placar em tempo real para todos os clientes, enquanto MQTT exigiria roteamento por tópicos através de um broker separado.
 
-##  Protocolo de Comunicação e Especificação de Payloads
+##  3. Protocolo de Comunicação e Especificação de Payloads
  
 A comunicação entre os Terminais Clientes (React) e o Servidor Central (Express/Socket.io) é orientada a eventos e estruturada sob os seguintes contratos de mensagem:
  
 ---
  
-### 1. Evento: `cast_vote` — Client → Server
+### 3.1. Evento: `cast_vote` — Client → Server
  
 | Campo | Valor |
 |---|---|
@@ -71,7 +71,7 @@ A comunicação entre os Terminais Clientes (React) e o Servidor Central (Expres
  
 ---
  
-### 2. Evento: `placar_atualizado` — Server → Broadcast (todos os clientes)
+### 3.2. Evento: `placar_atualizado` — Server → Broadcast (todos os clientes)
  
 | Campo | Valor |
 |---|---|
@@ -88,7 +88,7 @@ A comunicação entre os Terminais Clientes (React) e o Servidor Central (Expres
 }
 ```
 
-##  Modelagem de Estado em Memória
+##  4. Modelagem de Estado em Memória
 
 O servidor é a **única fonte de verdade**, mantendo as sessões ativas em memória volátil com o seguinte esquema:
 
@@ -113,7 +113,7 @@ O servidor é a **única fonte de verdade**, mantendo as sessões ativas em mem�
 
 ---
 
-## Regras de Domínio & Lógica de Validação
+## 5. Regras de Domínio & Lógica de Validação
 
 Ao receber um payload no listener `cast_vote`, o backend executa um funil de verificação sequencial:
 
@@ -157,7 +157,7 @@ Payload recebido
 
 ---
 
-##  Testes & Verificação
+## 6. Testes & Verificação
 
 
 ### Ferramentas
@@ -169,7 +169,7 @@ Payload recebido
 
 ---
 
-### Testes Unitários com Jest
+### 7. Testes Unitários com Jest
 
 Os testes unitários cobrem as regras de domínio do pipeline de validação de forma isolada, sem dependência de rede ou estado externo.
 
@@ -179,7 +179,7 @@ Os testes unitários cobrem as regras de domínio do pipeline de validação de 
 npm run test:coverage
 ```
 
-**Cenários planejados:**
+**7.1 Cenários planejados:**
 
 | Cenário | Descrição | Resultado Esperado |
 |---|---|---|
@@ -189,7 +189,7 @@ npm run test:coverage
 | **D — Payload malformado** | String fora do formato `CAST_VOTE\|<token>\|<opcao>` | Rejeitado no Format Check |
 
 
-###  Testes de Carga & Concorrência com K6
+### 7.2 Testes de Carga & Concorrência com K6
 
 O K6 será utilizado para simular alta concorrência de clientes WebSocket e identificar gargalos no event loop do servidor.
 
@@ -216,7 +216,7 @@ k6 run tests/load/voting-stress.js
 
 ---
 
-##  Como Executar
+## 8. Como Executar
 
 ### Pré-requisitos
 
@@ -257,13 +257,13 @@ npm run dev
 | Backend (Express + Socket.io) | `http://localhost:3001` |
 
 
-##  Autenticação em Memória & Prevenção de Fraude (Funil de Verificação por Token)
+##   9. Autenticação em Memória & Prevenção de Fraude (Funil de Verificação por Token)
  
 Esta seção detalha como o sistema gerencia a identidade dos clientes, previne votos duplos e processa a sincronização de estado estritamente dentro da memória do servidor.
  
 ---
  
-### Estratégia de Autenticação por Token
+### 10. Estratégia de Autenticação por Token
  
 Para o escopo atual da arquitetura, o sistema evita handshakes persistentes ou consultas externas de sessão. A identidade é verificada **evento a evento**:
  
@@ -272,7 +272,7 @@ Para o escopo atual da arquitetura, o sistema evita handshakes persistentes ou c
 - O servidor atua como um **parser de stream**: ao receber o evento, abre o envelope, isola o `<token>` e executa imediatamente as regras de domínio
 ---
  
-### Registros Voláteis em Memória
+### 11. Registros Voláteis em Memória
  
 Para gerenciar o rastreamento sem infraestrutura de banco de dados, o backend Express/Socket.io mantém as seguintes estruturas em tempo de execução:
  
@@ -283,7 +283,7 @@ Para gerenciar o rastreamento sem infraestrutura de banco de dados, o backend Ex
  
 ---
  
-###  Funil de Execução: Lógica Sequencial do Backend
+###  12. Funil de Execução: Lógica Sequencial do Backend
  
 Quando uma string de payload (ex.: `CAST_VOTE|TK_USER1|opcao_A`) chega pela interface de rede WebSocket, o pipeline de validação sequencial dispara as seguintes operações:
  
@@ -314,7 +314,7 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
    Broadcast disparado para todos os sockets (placar_atualizado)
 ```
  
-**Detalhamento de cada fase:**
+** 13. Detalhamento de cada fase:**
  
 **Validação — Step 1 (Autenticação):** O backend executa uma busca por índice (`.includes(token)`) sobre o vetor `tokens_autorizados`. Se o identificador estiver ausente, a execução termina imediatamente, disparando um evento de erro de volta apenas ao cliente infrator.
  
@@ -323,18 +323,8 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
 Satisfeitas as condições de execução segura, a opção escolhida incrementa o contador global em `+1` e o token é inserido (`.push(token)`) no registro `tokens_que_ja_votaram`. A partir disso,  qualquer pacote recorrente contendo este token é sistematicamente negado.
  
 ---
- 
-### Arquitetura 
-A arquitetura depende **do Gerenciamento de Estado em RAM **.
- 
-| Aspecto | Comportamento |
-|---|---|
-| **Reinicialização** | Se o processo Node.js for encerrado ou reiniciado, o estado é completamente zerado - votos compilados e `tokens_que_ja_votaram` são apagados |
-| **Trade-off** | Velocidade máxima de acesso ao estado vs. ausência de persistência entre sessões |
- 
- 
 
-### Testes
+### 14. Testes
 
 ```bash
 # Testes unitários (Jest)
@@ -346,7 +336,7 @@ k6 run tests/load/voting-stress.js
 
 ---
 
-##  Estrutura de Diretórios
+## 15. Estrutura de Diretórios
 
 ```
 ├── apps/
