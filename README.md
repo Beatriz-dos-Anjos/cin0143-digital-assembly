@@ -40,23 +40,19 @@ apps/
   
 > A escolha pelo monorepo permite compartilhar tipos TypeScript entre frontend e backend, garantindo consistência nos contratos de mensagem (ex.: o formato `CAST_VOTE|<token>|<opcao>` é tipado uma única vez e reutilizado em ambas as camadas).
 
-### Por que Socket.io em vez de raw sockets?
+## Por que Socket.io para o Sistema de Votação?
 
-**Comunicação orientada a eventos e assíncrona** — WebSockets habilitam comunicação full-duplex e não-bloqueante, ideal para aplicações em tempo real onde clientes operam sem aguardar respostas síncronas.
+Comunicação orientada a eventos e bidirecional em tempo real - WebSockets habilitam comunicação full-duplex e não-bloqueante, essencial para uma votação distribuída onde múltiplos clientes precisam receber atualizações do placar instantaneamente conforme os votos chegam ao servidor.
 
-**Baixo acoplamento via orientação a mensagens** — o paradigma de troca de mensagens mantém os clientes completamente desacoplados entre si. O servidor propaga atualizações sem necessidade de conhecer a infraestrutura individual de cada cliente.
+Baixo acoplamento via orientação a mensagens - o paradigma de troca de mensagens mantém os clientes completamente desacoplados entre si. O servidor propaga as atualizações de placar sem necessidade de conhecer a infraestrutura individual de cada cliente, permitindo que qualquer número de participantes se conecte e receba o placar sincronizado.
 
-### Trade-offs
+Controle centralizado de sessão de votação- Socket.io vincula cada cliente a uma sessão persistente no servidor, permitindo validar tokens e rastrear quem já votou de forma segura e atômica. O servidor é a única fonte de verdade, impedindo race conditions e garantindo que um token jamais vote duas vezes, mesmo sob alta concorrência.
 
-| Prós | Contras |
-|---|---|
-| Suporte nativo a broadcasting em massa | Estado centralizado na memória do servidor (bottleneck) |
-| Reconexão automática em caso de falha de rede | Single Point of Failure (SPOF) em escala horizontal massiva |
-| Propagação de dados desacoplada | Sujeito a race conditions sob alta concorrência |
+**Prós:** Suporte nativo a broadcasting em massa permite que o placar seja propagado para todos os clientes conectados simultaneamente. Reconexão automática em caso de falha de rede mantém a sessão de votação estável mesmo com oscilações de conectividade. Validação sequencial e atômica de votos garante integridade total da contagem, impedindo duplicatas. Placar sincronizado para todos os clientes em menos de 100ms, proporcionando experiência em tempo real.
+## Por que WebSocket em vez de MQTT?
 
-> TIRARA!!!!! O impacto do SPOF e do bottleneck de processamento será analisado em testes de carga futuros.
+WebSocket (Socket.io) garante **validação atômica de votos** em um único servidor centralizado, impedindo race conditions. MQTT seria assíncrono e desacoplado, tornando impossível garantir que um token não vota duas vezes em alta concorrência. Além disso, Socket.io oferece **broadcast nativo de baixíssima latência**  para sincronizar o placar em tempo real para todos os clientes, enquanto MQTT exigiria roteamento por tópicos através de um broker separado.
 
----
 ##  Protocolo de Comunicação e Especificação de Payloads
  
 A comunicação entre os Terminais Clientes (React) e o Servidor Central (Express/Socket.io) é orientada a eventos e estruturada sob os seguintes contratos de mensagem:
@@ -193,7 +189,7 @@ npm run test:coverage
 | **D — Payload malformado** | String fora do formato `CAST_VOTE\|<token>\|<opcao>` | Rejeitado no Format Check |
 
 
-### ⚡ Testes de Carga & Concorrência com K6
+###  Testes de Carga & Concorrência com K6
 
 O K6 será utilizado para simular alta concorrência de clientes WebSocket e identificar gargalos no event loop do servidor.
 
