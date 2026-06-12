@@ -29,32 +29,24 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 
 ### Estrutura Monorepo
 
-O projeto é organizado como um **monorepo**, separando claramente as responsabilidades:
+O projeto é organizado como um **monorepo**, separando claramente as responsabilidades
 
-```
-apps/
-├── web/      # Next.js — interface de votação e monitor de placar
-└── server/   # Node.js + Express + Socket.io — lógica central e estado
-```
 * A estrutura está descrita detalhadamente no final do README
   
 > A escolha pelo monorepo permite compartilhar tipos TypeScript entre frontend e backend, garantindo consistência nos contratos de mensagem (ex.: o formato `CAST_VOTE|<token>|<opcao>` é tipado uma única vez e reutilizado em ambas as camadas).
 
-### Por que Socket.io em vez de raw sockets?
+## Por que Socket.io para o Sistema de Votação?
+ 
+Comunicação orientada a eventos e bidirecional em tempo real : WebSockets habilitam comunicação full-duplex e não-bloqueante, essencial para uma votação distribuída onde múltiplos clientes precisam receber atualizações do placar instantaneamente conforme os votos chegam ao servidor.
+ 
+Baixo acoplamento via orientação a mensagens : o paradigma de troca de mensagens mantém os clientes completamente desacoplados entre si. O servidor propaga as atualizações de placar sem necessidade de conhecer a infraestrutura individual de cada cliente, permitindo que qualquer número de participantes se conecte e receba o placar sincronizado.
+ 
+Controle centralizado de sessão de votação : Socket.io vincula cada cliente a uma sessão persistente no servidor, permitindo validar tokens e rastrear quem já votou de forma segura e atômica. O servidor é a única fonte de verdade, impedindo race conditions e garantindo que um token jamais vote duas vezes, mesmo sob alta concorrência.
 
-**Comunicação orientada a eventos e assíncrona** — WebSockets habilitam comunicação full-duplex e não-bloqueante, ideal para aplicações em tempo real onde clientes operam sem aguardar respostas síncronas.
-
-**Baixo acoplamento via orientação a mensagens** — o paradigma de troca de mensagens mantém os clientes completamente desacoplados entre si. O servidor propaga atualizações sem necessidade de conhecer a infraestrutura individual de cada cliente.
-
-### Trade-offs
-
-| Prós | Contras |
-|---|---|
-| Suporte nativo a broadcasting em massa | Estado centralizado na memória do servidor (bottleneck) |
-| Reconexão automática em caso de falha de rede | Single Point of Failure (SPOF) em escala horizontal massiva |
-| Propagação de dados desacoplada | Sujeito a race conditions sob alta concorrência |
-
-> TIRARA!!!!! O impacto do SPOF e do bottleneck de processamento será analisado em testes de carga futuros.
+ 
+## Por que WebSocket em vez de MQTT?
+ 
+WebSocket (Socket.io) garante validação atômica de votos (autenticação → verificação duplicata → commit) em um único servidor centralizado, impedindo race conditions. MQTT seria assíncrono e desacoplado, tornando difícil garantir que um token não vota duas vezes em alta concorrência. Além disso, Socket.io oferece **broadcast nativo de baixíssima latência** para sincronizar o placar em tempo real para todos os clientes, enquanto MQTT exigiria roteamento por tópicos através de um broker separado.
 
 ---
 ##  Protocolo de Comunicação e Especificação de Payloads
@@ -193,7 +185,7 @@ npm run test:coverage
 | **D — Payload malformado** | String fora do formato `CAST_VOTE\|<token>\|<opcao>` | Rejeitado no Format Check |
 
 
-### ⚡ Testes de Carga & Concorrência com K6
+###  Testes de Carga & Concorrência com K6
 
 O K6 será utilizado para simular alta concorrência de clientes WebSocket e identificar gargalos no event loop do servidor.
 
@@ -326,17 +318,7 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
  
 Satisfeitas as condições de execução segura, a opção escolhida incrementa o contador global em `+1` e o token é inserido (`.push(token)`) no registro `tokens_que_ja_votaram`. A partir disso,  qualquer pacote recorrente contendo este token é sistematicamente negado.
  
----
- 
-### Arquitetura 
-A arquitetura depende **do Gerenciamento de Estado em RAM **.
- 
-| Aspecto | Comportamento |
-|---|---|
-| **Reinicialização** | Se o processo Node.js for encerrado ou reiniciado, o estado é completamente zerado - votos compilados e `tokens_que_ja_votaram` são apagados |
-| **Trade-off** | Velocidade máxima de acesso ao estado vs. ausência de persistência entre sessões |
- 
- 
+
 
 ### Testes
 
