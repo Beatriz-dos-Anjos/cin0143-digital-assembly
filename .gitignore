@@ -4,3 +4,8 @@ node_modules/
 dist/
 *.node
 EOF
+.env
+.env.local
+*.log
+coverage/
+.DS_Store
