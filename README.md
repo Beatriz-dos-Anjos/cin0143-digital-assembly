@@ -394,11 +394,11 @@ npm run dev
 | Backend (Express + Socket.io) | `http://localhost:3001` |
 
 
-##  Autenticação em Memória & Prevenção de Fraude (Funil de Verificação por Token)
- 
+##  Autenticação em Memória & Prevenção de Fraude 
+
 ### Estratégia de Autenticação por Token
  
-Para o escopo atual da arquitetura, o sistema evita handshakes persistentes ou consultas externas de sessão. A identidade é verificada **evento a evento**:
+Para o escopo atual da arquitetura, o sistema evita consultas externas de sessão. A identidade é verificada **evento a evento**:
  
 - O identificador único do cliente (Token) é embutido diretamente na string do payload
 - A cada clique no botão de votação, o cliente transmite o texto estrito: `CAST_VOTE|<token>|<opcao>`
