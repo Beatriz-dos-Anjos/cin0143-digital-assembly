@@ -42,24 +42,36 @@ O sistema segue uma arquitetura **Cliente Servidor**:
 
 ### Diagrama de Arquitetura
 
-┌──────────────────────────┐     WebSocket      ┌──────────────────────────┐
-│  FRONTEND                │   (Socket.io)      │  BACKEND                 │
-│  (React + Next.js)       │◄────────────────►  │  (Node.js + Express)     │
-│                          │                    │                          │
-│ RESPONSABILIDADES:       │  CAST_VOTE|...     │ RESPONSABILIDADES:       │
-│ • Renderizar UI          │ ────────────────►  │ • Parse & validar        │
-│ • Capturar entrada       │                    │ • Autenticar token       │
-│ • Validação UX (campo)   │  placar_atual      │ • Bloquear voto duplo    │
-│ • Enviar comando         │ ◄──────────────    │ • Registrar voto         │
-│ • Receber updates        │                    │ • Broadcast updates      │
-│ • Renderizar placar      │                    │ • Armazenar estado       │
-│                          │                    │                          │
-│ NÃO FAZ:                 │                    │ SEMPRE:                  │
-│ • Validar autorização    │                    │ • Autoridade final       │
-│ • Armazenar estado       │                    │ • Única fonte de verdade │
-│ • Decidir voto válido    │                    │ • Garante atomicidade    │
-└──────────────────────────┘                    └──────────────────────────┘
+```mermaid
+flowchart LR
 
+    U[Usuário]
+
+    subgraph Frontend [Frontend - React + Next.js]
+        F1[Renderizar UI]
+        F2[Capturar Entrada]
+        F3[Enviar CAST_VOTE]
+        F4[Receber Atualizações]
+    end
+
+    subgraph Backend [Backend - Node.js + Express + Socket.io]
+        B1[Parse e Validação]
+        B2[Autenticação por Token]
+        B3[Verificação de Duplicidade]
+        B4[Registrar Voto]
+        B5[Atualizar Placar]
+        B6[Broadcast]
+    end
+
+    U --> F1
+    F3 --> B1
+    B1 --> B2
+    B2 --> B3
+    B3 --> B4
+    B4 --> B5
+    B5 --> B6
+    B6 --> F4
+```
 ## Por que Socket.io para o Sistema de Votação?
  
 Comunicação orientada a eventos e bidirecional em tempo real : WebSockets habilitam comunicação full-duplex e não-bloqueante, essencial para uma votação distribuída onde múltiplos clientes precisam receber atualizações do placar instantaneamente conforme os votos chegam ao servidor.
@@ -109,34 +121,38 @@ A comunicação entre o Cliente e o Servidor  (Express/Socket.io) é orientada a
 }
 ```
 ``
-USUÁRIO                     CLIENTE                    SERVIDOR
-  │                           │                          │
-  ├─ Clica "Votar A"──────►   │                          │
-  │                           ├─ Valida UX───────────┐   │
-  │                           │                       │   │
-  │                           │ (Token preenchido?)   │   │
-  │                           │ (Opção selecionada?) │   │
-  │                           │                       │   │
-  │                           │ Passou ──────────►│   │
-  │                           │                       │   ├─ Emit 'cast_vote'
-  │                           │                       │   │  CAST_VOTE|TK_001|opcao_A
-  │                           │                       │   │
-  │                           │                       │   ├─ Parse payload
-  │                           │                       │   ├─ Valida servidor
-  │                           │                       │   ├─ (Token autorizado?)
-  │                           │                       │   ├─ (Já votou?)
-  │                           │                       │   ├─ (Opção existe?)
-  │                           │                       │   │
-  │                           │                       │   ├─ Commit
-  │                           │                       │   ├─ Incrementa placar
-  │                           │                       │   ├─ Broadcast
-  │                           │                       │   │
-  │◄────────────────────────────────────────────────────┤ emit 'placar_atualizado'
-  │     Servidor envia        ◄─ Socket escuta       │
-  │     {opcao_A: 5}             e atualiza UI      │
-  │                           │
-  ├─ Vê placar atualizado     │
-  │
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant C as Cliente (React/Next.js)
+    participant S as Servidor (Node.js + Socket.io)
+
+    U->>C: Clica em "Votar A"
+
+    Note over C: Validação UX<br/>Token preenchido?<br/>Opção selecionada?
+
+    C->>S: cast_vote<br/>CAST_VOTE|TK_001|opcao_A
+
+    S->>S: Parse do payload
+    S->>S: Verificar token autorizado
+    S->>S: Verificar voto duplicado
+    S->>S: Verificar opção válida
+
+    alt Voto válido
+        S->>S: Incrementa placar
+        S->>S: Registra token em tokens_que_ja_votaram
+        S-->>C: placar_atualizado
+        Note over S,C: {opcao_A: 5, opcao_B: 3}
+        C->>C: Atualiza interface
+        C-->>U: Exibe placar atualizado
+    else Token inválido
+        S-->>C: cast_vote_error
+    else Token já votou
+        S-->>C: duplicate_vote
+    else Payload inválido
+        S-->>C: invalid_format
+    end
 ```
 
 
@@ -208,7 +224,7 @@ Payload recebido
                    │ (não votou ainda)
                    ▼
 ┌─────────────────────────────────────────┐
-│  Step 3 -  Registro             │
+│  Step 3 -  Registro                     │
 │  Incrementa placar_atual[opcao]         │
 │  Adiciona token a tokens_que_ja_votaram │
 └──────────────────┬──────────────────────┘
@@ -216,7 +232,7 @@ Payload recebido
                    ▼
 ┌─────────────────────────────────────────┐
 │  Step 4 - Broadcast                     │
-│  e placar_atualizado_sessao   │
+│  e placar_atualizado_sessao             │
 └─────────────────────────────────────────┘
 ```
 
