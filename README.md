@@ -1,8 +1,6 @@
-# CIN0143 — Digital Assembly Voting System
+# CIN0143 - Digital Assembly Voting System
 
 Sistema de votação digital distribuído para assembleias de condomínios ou corporativas, com suporte a múltiplos clientes simultâneos e sessões em tempo real.
-
----
 
 ##  Visão Geral
 
@@ -32,8 +30,35 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 O projeto é organizado como um **monorepo**, separando claramente as responsabilidades
 
 * A estrutura está descrita detalhadamente no final do README
+-> A escolha pelo monorepo permite compartilhar tipos TypeScript entre frontend e backend, garantindo consistência nos contratos de mensagem.
   
-> A escolha pelo monorepo permite compartilhar tipos TypeScript entre frontend e backend, garantindo consistência nos contratos de mensagem (ex.: o formato `CAST_VOTE|<token>|<opcao>` é tipado uma única vez e reutilizado em ambas as camadas).
+## Arquitetura Cliente-Servidor
+
+### Visão Geral
+
+O sistema segue uma arquitetura **Cliente Servidor**:
+- **Cliente**: Interface e validação UX 
+- **Servidor**: Validação real, autorização, estado
+
+### Diagrama de Arquitetura
+
+┌──────────────────────────┐     WebSocket      ┌──────────────────────────┐
+│  FRONTEND                │   (Socket.io)      │  BACKEND                 │
+│  (React + Next.js)       │◄────────────────►  │  (Node.js + Express)     │
+│                          │                    │                          │
+│ RESPONSABILIDADES:       │  CAST_VOTE|...     │ RESPONSABILIDADES:       │
+│ • Renderizar UI          │ ────────────────►  │ • Parse & validar        │
+│ • Capturar entrada       │                    │ • Autenticar token       │
+│ • Validação UX (campo)   │  placar_atual      │ • Bloquear voto duplo    │
+│ • Enviar comando         │ ◄──────────────    │ • Registrar voto         │
+│ • Receber updates        │                    │ • Broadcast updates      │
+│ • Renderizar placar      │                    │ • Armazenar estado       │
+│                          │                    │                          │
+│ NÃO FAZ:                 │                    │ SEMPRE:                  │
+│ • Validar autorização    │                    │ • Autoridade final       │
+│ • Armazenar estado       │                    │ • Única fonte de verdade │
+│ • Decidir voto válido    │                    │ • Garante atomicidade    │
+└──────────────────────────┘                    └──────────────────────────┘
 
 ## Por que Socket.io para o Sistema de Votação?
  
@@ -41,21 +66,21 @@ Comunicação orientada a eventos e bidirecional em tempo real : WebSockets habi
  
 Baixo acoplamento via orientação a mensagens : o paradigma de troca de mensagens mantém os clientes completamente desacoplados entre si. O servidor propaga as atualizações de placar sem necessidade de conhecer a infraestrutura individual de cada cliente, permitindo que qualquer número de participantes se conecte e receba o placar sincronizado.
  
-Controle centralizado de sessão de votação : Socket.io vincula cada cliente a uma sessão persistente no servidor, permitindo validar tokens e rastrear quem já votou de forma segura e atômica. O servidor é a única fonte de verdade, impedindo race conditions e garantindo que um token jamais vote duas vezes, mesmo sob alta concorrência.
+Controle centralizado de sessão de votação : Socket.io vincula cada cliente a uma sessão persistente no servidor, permitindo validar tokens e rastrear quem já votou de forma segura. O servidor garante que um token jamais vote duas vezes, mesmo sob alta concorrência.
 
  
 ## Por que WebSocket em vez de MQTT?
  
-WebSocket (Socket.io) garante validação atômica de votos (autenticação → verificação duplicata → commit) em um único servidor centralizado, impedindo race conditions. MQTT seria assíncrono e desacoplado, tornando difícil garantir que um token não vota duas vezes em alta concorrência. Além disso, Socket.io oferece **broadcast nativo de baixíssima latência** para sincronizar o placar em tempo real para todos os clientes, enquanto MQTT exigiria roteamento por tópicos através de um broker separado.
+WebSocket (Socket.io) garante validação dos votos  em um único servidor centralizado, impedindo race conditions. MQTT seria assíncrono e desacoplado, tornando difícil garantir que um token não vota duas vezes em alta concorrência. Além disso, Socket.io oferece **broadcast nativo de baixíssima latência** para sincronizar o placar em tempo real para todos os clientes, enquanto MQTT exigiria roteamento por tópicos através de um broker separado.
 
 ---
 ##  Protocolo de Comunicação e Especificação de Payloads
  
-A comunicação entre os Terminais Clientes (React) e o Servidor Central (Express/Socket.io) é orientada a eventos e estruturada sob os seguintes contratos de mensagem:
+A comunicação entre o Cliente e o Servidor  (Express/Socket.io) é orientada a eventos (**Event Driven**) e estruturada sob os seguintes contratos de mensagem:
  
 ---
  
-### 1. Evento: `cast_vote` — Client → Server
+### 1. Evento: `cast_vote` - Client → Server
  
 | Campo | Valor |
 |---|---|
@@ -67,7 +92,7 @@ A comunicação entre os Terminais Clientes (React) e o Servidor Central (Expres
  
 ---
  
-### 2. Evento: `placar_atualizado` — Server → Broadcast (todos os clientes)
+### 2. Evento: `placar_atualizado` - Server → Broadcast (todos os clientes)
  
 | Campo | Valor |
 |---|---|
@@ -83,10 +108,41 @@ A comunicação entre os Terminais Clientes (React) e o Servidor Central (Expres
   "opcao_B": 2
 }
 ```
+``
+USUÁRIO                     CLIENTE                    SERVIDOR
+  │                           │                          │
+  ├─ Clica "Votar A"──────►   │                          │
+  │                           ├─ Valida UX───────────┐   │
+  │                           │                       │   │
+  │                           │ (Token preenchido?)   │   │
+  │                           │ (Opção selecionada?) │   │
+  │                           │                       │   │
+  │                           │ Passou ──────────►│   │
+  │                           │                       │   ├─ Emit 'cast_vote'
+  │                           │                       │   │  CAST_VOTE|TK_001|opcao_A
+  │                           │                       │   │
+  │                           │                       │   ├─ Parse payload
+  │                           │                       │   ├─ Valida servidor
+  │                           │                       │   ├─ (Token autorizado?)
+  │                           │                       │   ├─ (Já votou?)
+  │                           │                       │   ├─ (Opção existe?)
+  │                           │                       │   │
+  │                           │                       │   ├─ Commit
+  │                           │                       │   ├─ Incrementa placar
+  │                           │                       │   ├─ Broadcast
+  │                           │                       │   │
+  │◄────────────────────────────────────────────────────┤ emit 'placar_atualizado'
+  │     Servidor envia        ◄─ Socket escuta       │
+  │     {opcao_A: 5}             e atualiza UI      │
+  │                           │
+  ├─ Vê placar atualizado     │
+  │
+```
+
 
 ##  Modelagem de Estado em Memória
 
-O servidor é a **única fonte de verdade**, mantendo as sessões ativas em memória volátil com o seguinte esquema:
+O servidor mantém as sessões ativas em memória volátil com o seguinte esquema:
 
 ```json
 {
@@ -99,6 +155,21 @@ O servidor é a **única fonte de verdade**, mantendo as sessões ativas em mem�
   "tokens_que_ja_votaram": ["string"]
 }
 ```
+## Como Inicializar uma Sessão
+
+POST /api/sessions
+Content-Type: application/json
+
+{
+  "session_id": "ASSEMBLY_CONDOMINIO_JAN_2027",
+  "opcoes": ["opcao_A", "opcao_B"],
+  "tokens_autorizados": ["TK_001", "TK_002", "TK_003"]
+}
+
+Response: 201
+{ "session_id": "...", "status": "OPEN" }
+
+---
 
 | Campo | Descrição |
 |---|---|
@@ -124,33 +195,42 @@ Payload recebido
                    │ 
                    ▼
 ┌─────────────────────────────────────────┐
-│  Step 1 — Autenticação                  │
+│  Step 1 - Autenticação                  │
 │  <token> existe em tokens_autorizados?  │
 └──────────────────┬──────────────────────┘
                    │ 
                    ▼
 ┌─────────────────────────────────────────┐
-│  Step 2 — Controle de Duplicatas        │
+│  Step 2 - Controle de Duplicatas        │
 │  <token> já está em                     │
 │  tokens_que_ja_votaram?                 │
 └──────────────────┬──────────────────────┘
-                   │ ❌ (não votou ainda)
+                   │ (não votou ainda)
                    ▼
 ┌─────────────────────────────────────────┐
-│  Step 3 — Commit & Registro             │
+│  Step 3 -  Registro             │
 │  Incrementa placar_atual[opcao]         │
 │  Adiciona token a tokens_que_ja_votaram │
 └──────────────────┬──────────────────────┘
                    │
                    ▼
 ┌─────────────────────────────────────────┐
-│  Step 4 — Broadcast                     │
-│  io.emit() → placar_atualizado_sessao   │
+│  Step 4 - Broadcast                     │
+│  e placar_atualizado_sessao   │
 └─────────────────────────────────────────┘
 ```
 
 > Qualquer falha em uma etapa retorna uma mensagem de erro ao cliente e **interrompe** o pipeline.
 
+## Eventos de Erro (Server → Client)
+
+| Evento | Payload | Quando |
+|--------|---------|--------|
+| cast_vote_error | {"error": "unauthorized"} | Token não autorizado |
+| cast_vote_error | {"error": "duplicate_vote"} | Token já votou |
+| cast_vote_error | {"error": "invalid_format"} | Payload malformado |
+
+---
 ---
 
 ##  Testes & Verificação
@@ -160,14 +240,14 @@ Payload recebido
 
 | Ferramenta | Camada | Finalidade |
 |---|---|---|
-| **Jest** | Unitário / Integração | Testar parsers, validadores e regras de domínio isoladamente |
-| **K6** | Carga & Concorrência | Simular centenas de clientes WebSocket simultâneos |
+| **Jest** | Unitário / Integração | Testar validadores e regras de domínio isoladamente |
+| **K6** | Carga & Concorrência | Simular clientes WebSocket simultâneos |
 
 ---
 
 ### Testes Unitários com Jest
 
-Os testes unitários cobrem as regras de domínio do pipeline de validação de forma isolada, sem dependência de rede ou estado externo.
+Os testes unitários cobrem as regras de domínio do pipeline de validação de forma isolada.
 
 **Executar:**
 
@@ -179,10 +259,10 @@ npm run test:coverage
 
 | Cenário | Descrição | Resultado Esperado |
 |---|---|---|
-| **A — Happy Path** | Token válido vota em opção válida | Placar incrementado, token registrado, broadcast emitido |
-| **B — Fraude (double vote)** | Token válido submete `CAST_VOTE` duas vezes | Bloqueado no Step 2 — erro retornado |
-| **C — Intrusão** | Token não listado tenta votar | Bloqueado no Step 1 — erro retornado |
-| **D — Payload malformado** | String fora do formato `CAST_VOTE\|<token>\|<opcao>` | Rejeitado no Format Check |
+| **A - Happy Path** | Token válido vota em opção válida | Placar incrementado, token registrado, broadcast emitido |
+| **B - Fraude (double vote)** | Token válido submete `CAST_VOTE` duas vezes | Erro retornado (Passo 2) |
+| **C - Intrusão** | Token não listado tenta votar |Erro retornado (Passo 1) |
+| **D - Payload malformado** | String fora do formato `CAST_VOTE\|<token>\|<opcao>` | Rejeitado no Format Check |
 
 
 ###  Testes de Carga & Concorrência com K6
@@ -255,17 +335,14 @@ npm run dev
 
 ##  Autenticação em Memória & Prevenção de Fraude (Funil de Verificação por Token)
  
-Esta seção detalha como o sistema gerencia a identidade dos clientes, previne votos duplos e processa a sincronização de estado estritamente dentro da memória do servidor.
- 
----
- 
 ### Estratégia de Autenticação por Token
  
 Para o escopo atual da arquitetura, o sistema evita handshakes persistentes ou consultas externas de sessão. A identidade é verificada **evento a evento**:
  
 - O identificador único do cliente (Token) é embutido diretamente na string do payload
-- A cada clique no botão de votação no frontend React, o cliente transmite o layout textual estrito: `CAST_VOTE|<token>|<opcao>`
-- O servidor atua como um **parser de stream**: ao receber o evento, abre o envelope, isola o `<token>` e executa imediatamente as regras de domínio
+- A cada clique no botão de votação, o cliente transmite o texto estrito: `CAST_VOTE|<token>|<opcao>`
+- O servidor analisa e processa os dados em tempo real: ao receber o evento, abre o envelope, isola o <token> e executa imediatamente as regras de domínio.
+
 ---
  
 ### Registros Voláteis em Memória
@@ -274,14 +351,14 @@ Para gerenciar o rastreamento sem infraestrutura de banco de dados, o backend Ex
  
 | Estrutura | Tipo | Inicialização | Papel |
 |---|---|---|---|
-| `tokens_autorizados` | `string[]` | Populado no servidor | Registro de controle de acesso — lista todos os tokens legalmente registrados na sessão (ex.: `['TK_USER1', 'TK_USER2', 'TK_USER3']`) |
-| `tokens_que_ja_votaram` | `string[]` | Inicializado vazio `[]` | Registro antifraude — barreira dinâmica contra votos duplos, atualizada a cada voto confirmado |
+| `tokens_autorizados` | `string[]` | Populado no servidor | Registro de controle de acesso - lista todos os tokens legalmente registrados na sessão (ex.: `['TK_USER1', 'TK_USER2', 'TK_USER3']`) |
+| `tokens_que_ja_votaram` | `string[]` | Inicializado vazio `[]` | Registro antifraude — barreira contra votos duplos, atualizada a cada voto confirmado |
  
 ---
  
 ###  Funil de Execução: Lógica Sequencial do Backend
  
-Quando uma string de payload (ex.: `CAST_VOTE|TK_USER1|opcao_A`) chega pela interface de rede WebSocket, o pipeline de validação sequencial dispara as seguintes operações:
+Quando uma string de payload  chega pela interface de rede WebSocket, o pipeline de validação sequencial dispara as seguintes operações:
  
 ```text
 Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
@@ -303,7 +380,7 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
               │ False
               ▼
    ┌────────────────────────────────┐
-   │  Commit do Voto & Registro     │ ──► 1. Incrementa placar_atual['opcao_A'] em +1
+   │  Registro                      │ ──► 1. Incrementa placar_atual['opcao_A'] em +1
    └────────────────────────────────┘     2. Insere 'TK_USER1' em tokens_que_ja_votaram
               │
               ▼
@@ -312,11 +389,11 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
  
 **Detalhamento de cada fase:**
  
-**Validação — Step 1 (Autenticação):** O backend executa uma busca por índice (`.includes(token)`) sobre o vetor `tokens_autorizados`. Se o identificador estiver ausente, a execução termina imediatamente, disparando um evento de erro de volta apenas ao cliente infrator.
+**Autenticação:** O backend executa uma busca por índice (`.includes(token)`) sobre o vetor `tokens_autorizados`. Se o identificador estiver ausente, a execução termina imediatamente, disparando um evento de erro de volta apenas ao cliente.
  
-**Validação — Step 2 (Prevenção de Duplicidade):** O backend verifica se o token extraído já está presente (`.includes(token)`) no bloco histórico `tokens_que_ja_votaram`. Se retornar `true`, a transação é reconhecida como tentativa de fraude e bloqueada.
+**Prevenção de Duplicidade:** O backend verifica se o token extraído já está presente (`.includes(token)`) no bloco histórico `tokens_que_ja_votaram`. Se retornar `true`, a transação é reconhecida como tentativa de fraude e bloqueada.
  
-Satisfeitas as condições de execução segura, a opção escolhida incrementa o contador global em `+1` e o token é inserido (`.push(token)`) no registro `tokens_que_ja_votaram`. A partir disso,  qualquer pacote recorrente contendo este token é sistematicamente negado.
+Satisfeitas as condições de execução segura, o token é inserido (`.push(token)`) no registro `tokens_que_ja_votaram`. A partir disso,  qualquer pacote recorrente contendo este token é sistematicamente negado.
  
 
 
@@ -326,7 +403,7 @@ Satisfeitas as condições de execução segura, a opção escolhida incrementa 
 # Testes unitários (Jest)
 npm run test
 
-# Testes de carga (K6) — requer K6 instalado globalmente
+# Testes de carga (K6)
 k6 run tests/load/voting-stress.js
 ```
 
