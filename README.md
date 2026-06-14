@@ -73,17 +73,53 @@ flowchart LR
     B6 --> F4
 ```
 ## Por que Socket.io para o Sistema de Votação?
- 
-Comunicação orientada a eventos e bidirecional em tempo real : WebSockets habilitam comunicação full-duplex e não-bloqueante, essencial para uma votação distribuída onde múltiplos clientes precisam receber atualizações do placar instantaneamente conforme os votos chegam ao servidor.
- 
-Baixo acoplamento via orientação a mensagens : o paradigma de troca de mensagens mantém os clientes completamente desacoplados entre si. O servidor propaga as atualizações de placar sem necessidade de conhecer a infraestrutura individual de cada cliente, permitindo que qualquer número de participantes se conecte e receba o placar sincronizado.
- 
-Controle centralizado de sessão de votação : Socket.io vincula cada cliente a uma sessão persistente no servidor, permitindo validar tokens e rastrear quem já votou de forma segura. O servidor garante que um token jamais vote duas vezes, mesmo sob alta concorrência.
 
+## Comunicação Orientada a Eventos e Bidirecional em Tempo Real
+
+WebSockets, por meio do Socket.io, permitem comunicação **full-duplex** e **não bloqueante** entre clientes e servidor.
+
+Para um sistema de votação, isso é essencial porque:
+
+- Múltiplos clientes precisam receber atualizações instantaneamente conforme os votos são registrados.
+- Sem atualização em tempo real, o placar pode ficar desincronizado.
+- Alternativas baseadas em consultas repetidas (como ficar checando o sistema a todo momento) introduzem latência e aumentam o risco de inconsistências, incluindo vulnerabilidades relacionadas a votos duplicados.
+
+## Baixo Acoplamento por Meio de Troca de Mensagens
+
+O paradigma orientado a mensagens mantém os clientes desacoplados entre si.
+
+Benefícios para o sistema de votação:
+
+- O servidor propaga atualizações sem precisar conhecer detalhes da infraestrutura de cada cliente.
+- Participantes pode se conectar simultaneamente.
+- O placar permanece sincronizado globalmente.
+- Novas regras de validação podem ser adicionadas futuramente sem alterar a comunicação entre clientes.
+
+## Controle Centralizado da Sessão de Votação
+
+O Socket.io mantém uma sessão persistente entre cliente e servidor, permitindo controle centralizado das conexões.
+
+Isso possibilita:
+
+- Identificação precisa do token associado a cada cliente conectado.
+- Validação segura e singular dos tokens.
+- Rastreamento confiável de quais participantes já votaram.
+- Manutenção do servidor como única fonte de verdade do sistema.
+- Eliminação de comandos simultâneos (race conditions) relacionadas ao processamento dos votos.
+
+---
  
 ## Por que WebSocket em vez de MQTT?
- 
-WebSocket (Socket.io) garante validação dos votos  em um único servidor centralizado, impedindo race conditions. MQTT seria assíncrono e desacoplado, tornando difícil garantir que um token não vota duas vezes em alta concorrência. Além disso, Socket.io oferece **broadcast nativo de baixíssima latência** para sincronizar o placar em tempo real para todos os clientes, enquanto MQTT exigiria roteamento por tópicos através de um broker separado.
+
+## MQTT é Assíncrono e Altamente Desacoplado
+Embora essas características sejam vantajosas em diversos cenários de IoT e telemetria, elas representam desafios para sistemas de votação - tornam difícil garantir que um token não vota duas vezes em alta concorrência.
+
+Problemas potenciais:
+- Um cliente pode receber confirmação de publicação antes da conclusão efetiva do processamento do voto.
+- Caso ocorra uma falha entre a confirmação do broker e a persistência da operação no servidor, o sistema pode entrar em estado inconsistente.
+- Torna-se mais difícil garantir a regra de **um voto por token** 
+
+Além disso, Socket.io oferece **broadcast nativo de baixíssima latência** para sincronizar o placar em tempo real para todos os clientes, enquanto MQTT exigiria roteamento através de um broker separado.
 
 ---
 ##  Protocolo de Comunicação e Especificação de Payloads
@@ -176,11 +212,20 @@ O servidor mantém as sessões ativas em memória volátil com o seguinte esquem
 POST /api/sessions
 Content-Type: application/json
 
+```json
 {
-  "session_id": "ASSEMBLY_CONDOMINIO_JAN_2027",
-  "opcoes": ["opcao_A", "opcao_B"],
-  "tokens_autorizados": ["TK_001", "TK_002", "TK_003"]
+  "session_id": "ASSEMBLY_CONDOMINIO_JUN_2026",
+  "opcoes": [
+    "opcao_A",
+    "opcao_B"
+  ],
+  "tokens_autorizados": [
+    "TK_001",
+    "TK_002",
+    "TK_003"
+  ]
 }
+```
 
 Response: 201
 { "session_id": "...", "status": "OPEN" }
@@ -361,7 +406,7 @@ Para o escopo atual da arquitetura, o sistema evita handshakes persistentes ou c
 
 ---
  
-### Registros Voláteis em Memória
+### Registros em Memória
  
 Para gerenciar o rastreamento sem infraestrutura de banco de dados, o backend Express/Socket.io mantém as seguintes estruturas em tempo de execução:
  
@@ -372,9 +417,10 @@ Para gerenciar o rastreamento sem infraestrutura de banco de dados, o backend Ex
  
 ---
  
-###  Funil de Execução: Lógica Sequencial do Backend
- 
-Quando uma string de payload  chega pela interface de rede WebSocket, o pipeline de validação sequencial dispara as seguintes operações:
+###  Lógica Backend
+
+Esta seção detalha a implementação prática do pipeline de validação definido acima e na seção ### Regras de Domínio & Lógica de Validação.
+Quando uma string de payload  chega pela interface de rede WebSocket, há as seguintes validações:
  
 ```text
 Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
@@ -386,31 +432,22 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
               │
               ▼
    ┌────────────────────────────────┐
-   │  Verificação de Autorização    │ ──► .includes('TK_USER1') em tokens_autorizados
+   │  Verificação de Autorização    │ ──► Inclui o token do usuário em tokens_autorizados.
    └────────────────────────────────┘     False: Rejeita com evento "Acesso Negado"
               │ True
               ▼
    ┌────────────────────────────────┐
-   │  Bloqueio de Voto Duplo        │ ──► .includes('TK_USER1') em tokens_que_ja_votaram
-   └────────────────────────────────┘     True: Rejeita com evento "Fraude Detectada"
+   │  Bloqueio de Voto Duplo        │ ──► Inclui o token do usuário em tokens_que_ja_votaram
+   └────────────────────────────────┘     Se já estiver lá: Rejeita com evento "Fraude Detectada" de duplicação. Caso contrário, vai para o último passo.
               │ False
               ▼
    ┌────────────────────────────────┐
-   │  Registro                      │ ──► 1. Incrementa placar_atual['opcao_A'] em +1
+   │  Registro (escrita)            │ ──► 1. Incrementa placar_atual['opcao_A'] em +1
    └────────────────────────────────┘     2. Insere 'TK_USER1' em tokens_que_ja_votaram
               │
               ▼
    Broadcast disparado para todos os sockets (placar_atualizado)
 ```
- 
-**Detalhamento de cada fase:**
- 
-**Autenticação:** O backend executa uma busca por índice (`.includes(token)`) sobre o vetor `tokens_autorizados`. Se o identificador estiver ausente, a execução termina imediatamente, disparando um evento de erro de volta apenas ao cliente.
- 
-**Prevenção de Duplicidade:** O backend verifica se o token extraído já está presente (`.includes(token)`) no bloco histórico `tokens_que_ja_votaram`. Se retornar `true`, a transação é reconhecida como tentativa de fraude e bloqueada.
- 
-Satisfeitas as condições de execução segura, o token é inserido (`.push(token)`) no registro `tokens_que_ja_votaram`. A partir disso,  qualquer pacote recorrente contendo este token é sistematicamente negado.
- 
 
 
 ### Testes
