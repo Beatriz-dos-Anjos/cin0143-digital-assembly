@@ -10,7 +10,7 @@ export type LogLevel =
   | "AUDITORIA";
 
 export interface LogDetails {
-  [key: string]: string | number | boolean | undefined;
+  [key: string]: string | number | boolean | string[] | number[] | undefined;
 }
 
 export interface StructuredLog {
@@ -47,7 +47,10 @@ function formatConsoleLine(log: StructuredLog): string {
 
   const detailLines = Object.entries(log.details)
     .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => `  ├─ ${key}: ${value}`);
+    .map(([key, value]) => {
+      const formattedValue = Array.isArray(value) ? value.join(", ") : value;
+      return `  ├─ ${key}: ${formattedValue}`;
+    });
 
   if (detailLines.length > 0) {
     const last = detailLines.pop()!;

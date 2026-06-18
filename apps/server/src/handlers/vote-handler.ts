@@ -8,6 +8,12 @@ import {
 } from "../domain/types";
 import { logger, formatTimestamp } from "../loggers/logger";
 
+function getTokensAindaAptos(sessao: SessaoVotacao): string[] {
+  return sessao.tokens_autorizados.filter(
+    (token) => !sessao.tokens_que_ja_votaram.includes(token)
+  );
+}
+
 function resolveClientIp(socket: Socket): string {
   const forwarded = socket.handshake.headers["x-forwarded-for"];
   if (typeof forwarded === "string") {
@@ -129,10 +135,14 @@ export function logVoteSummary(sessao: SessaoVotacao): void {
   const totalB = sessao.placar_atual.opcao_B;
   const percentA = total > 0 ? ((totalA / total) * 100).toFixed(1) : "0.0";
   const percentB = total > 0 ? ((totalB / total) * 100).toFixed(1) : "0.0";
+  const tokensAutorizadosAVotar = getTokensAindaAptos(sessao);
 
   logger.info("VOTE_SUMMARY", "Status da votação atualizado", {
+    sessao_id: sessao.sessao_id,
     votos_processados: total,
     opcao_A: `${totalA} votos (${percentA}%)`,
     opcao_B: `${totalB} votos (${percentB}%)`,
+    tokens_autorizados_a_votar: tokensAutorizadosAVotar,
+    tokens_que_ja_votaram: sessao.tokens_que_ja_votaram,
   });
 }

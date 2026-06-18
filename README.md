@@ -546,7 +546,8 @@ npm install
 | Comando | Descrição |
 |---|---|
 | `npm run dev` | Inicia servidor Express + Socket.io (porta 3001) |
-| `npm run console` | Console interativo de autenticação e votação |
+| `npm run client` | Cliente manual independente, gera token e permite votar via terminal |
+| `npm run console` | Console interativo local de autenticação e votação, incluindo `SESSION` |
 | `npm run vote:test` | Cliente WebSocket de teste (envia um CAST_VOTE) |
 | `npm test` | Testes unitários Jest |
 | `npm start` | Servidor compilado (requer `npm run build` antes) |
@@ -556,7 +557,42 @@ npm install
 | Backend (Express + Socket.io) | `http://localhost:3001` |
 | Frontend (Next.js) | `http://localhost:3000` |
 
-> Para a **Entrega 2**, use `npm run dev` + `npm run console` ou `npm run vote:test`. Veja a seção [Entrega 2](#entrega-2--comunicação-e-core) acima.
+### Cliente manual independente
+
+Para conectar um cliente novo em outro terminal, gerar um token próprio e votar manualmente, rode:
+
+```bash
+npm run client
+```
+
+O cliente abre uma sessão Socket.io com o servidor, solicita autorização do token e passa a aceitar comandos no próprio terminal:
+
+```text
+token        # mostra o token gerado para aquele cliente
+vote A       # envia voto para opcao_A
+vote B       # envia voto para opcao_B
+session      # solicita ao servidor o snapshot da sessão
+status       # mostra a sessão e o token atuais
+exit         # encerra o cliente
+```
+
+Se quiser listar todos os dados da sessão no servidor, use o console do backend:
+
+```bash
+npm run console
+```
+
+Depois execute:
+
+```text
+SESSION
+```
+
+Esse comando mostra a sessão ativa, o placar, os tokens autorizados a votar, os tokens que já votaram e os canais/eventos usados pelo Socket.io.
+
+Cada conexão, autorização de token e voto aceito/rejeitado fica registrada nos logs do servidor.
+
+Para testar duplicidade, use o mesmo cliente e execute `vote A` duas vezes. A segunda tentativa deve ser rejeitada como voto duplicado.
 
 
 ##  Autenticação em Memória & Prevenção de Fraude 

@@ -61,6 +61,20 @@ export class SessionStore {
     return sessao;
   }
 
+  addAuthorizedToken(sessaoId: string, token: string): SessaoVotacao | undefined {
+    const sessao = this.sessions.get(sessaoId);
+
+    if (!sessao) {
+      return undefined;
+    }
+
+    if (!sessao.tokens_autorizados.includes(token)) {
+      sessao.tokens_autorizados.push(token);
+    }
+
+    return sessao;
+  }
+
   findVoteByToken(sessao: SessaoVotacao, token: string): VotoRegistrado | undefined {
     return sessao.votos_realizados.find((voto) => voto.token === token);
   }

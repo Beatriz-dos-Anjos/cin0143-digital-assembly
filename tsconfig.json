@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["script.ts"]
+  "include": ["script.ts", "client.ts"]
 }

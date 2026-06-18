@@ -75,6 +75,10 @@ export const VALID_OPTIONS: readonly VoteOption[] = ["opcao_A", "opcao_B"];
 
 export const SOCKET_EVENTS = {
   CAST_VOTE: "cast_vote",
+  CLIENT_REGISTER: "client_register",
+  CLIENT_REGISTERED: "client_registered",
+  SESSION_REQUEST: "session_request",
+  SESSION_DATA: "session_data",
   PLACAR_ATUALIZADO: "placar_atualizado",
   VOTE_ERROR: "vote_error",
   CONNECTION_ACK: "connection_ack",

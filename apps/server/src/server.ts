@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import { randomUUID } from "crypto";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -65,6 +66,19 @@ app.get("/sessions/:sessaoId", (req, res) => {
   });
 });
 
+function createClientToken(): string {
+  return `TK_CLIENT_${randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
+function getTokensAindaAptos(sessao: {
+  tokens_autorizados: string[];
+  tokens_que_ja_votaram: string[];
+}): string[] {
+  return sessao.tokens_autorizados.filter(
+    (token) => !sessao.tokens_que_ja_votaram.includes(token)
+  );
+}
+
 app.post("/api/sessions", (req, res) => {
   const { session_id, tokens_autorizados } = req.body ?? {};
 
@@ -107,6 +121,58 @@ io.on("connection", (socket) => {
     message: "Conectado ao servidor de votação.",
     sessao_id: sessao.sessao_id,
     placar_atual: sessao.placar_atual,
+  });
+
+  socket.on(SOCKET_EVENTS.CLIENT_REGISTER, (payload: unknown) => {
+    const requestedToken =
+      typeof payload === "string"
+        ? payload
+        : payload && typeof payload === "object" && "token" in payload
+          ? String((payload as { token?: unknown }).token ?? "")
+          : "";
+
+    const token = requestedToken.trim() || createClientToken();
+    const updatedSession = sessionStore.addAuthorizedToken(sessao.sessao_id, token);
+
+    if (!updatedSession) {
+      socket.emit(SOCKET_EVENTS.VOTE_ERROR, {
+        code: "SESSAO_NAO_ENCONTRADA",
+        message: "Sessão padrão não encontrada para registrar o cliente.",
+      });
+      return;
+    }
+
+    logger.success("WEBSOCKET", "Cliente autenticado para votação", {
+      token,
+      sessao_id: updatedSession.sessao_id,
+      socket_id: socket.id,
+      total_tokens: updatedSession.tokens_autorizados.length,
+    });
+
+    socket.emit(SOCKET_EVENTS.CLIENT_REGISTERED, {
+      token,
+      sessao_id: updatedSession.sessao_id,
+    });
+  });
+
+  socket.on(SOCKET_EVENTS.SESSION_REQUEST, () => {
+    const currentSession = sessionStore.getDefault();
+    const tokensAutorizadosAVotar = getTokensAindaAptos(currentSession);
+
+    logger.info("WEBSOCKET", "Snapshot de sessão solicitado", {
+      sessao_id: currentSession.sessao_id,
+      socket_id: socket.id,
+      placar_atual: `A=${currentSession.placar_atual.opcao_A} | B=${currentSession.placar_atual.opcao_B}`,
+      tokens_autorizados: tokensAutorizadosAVotar,
+      tokens_que_ja_votaram: currentSession.tokens_que_ja_votaram,
+    });
+
+    socket.emit(SOCKET_EVENTS.SESSION_DATA, {
+      sessao_id: currentSession.sessao_id,
+      placar_atual: currentSession.placar_atual,
+      tokens_autorizados: getTokensAindaAptos(currentSession),
+      tokens_que_ja_votaram: currentSession.tokens_que_ja_votaram,
+    });
   });
 
   socket.on(SOCKET_EVENTS.CAST_VOTE, (payload: unknown) => {

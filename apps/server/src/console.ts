@@ -1,6 +1,6 @@
 import * as readline from "readline";
 
-import { VoteOption } from "./domain/types";
+import { SOCKET_EVENTS, VoteOption, placarChannel } from "./domain/types";
 import {
   getTokenStatus,
   processVote,
@@ -29,6 +29,8 @@ Comandos disponíveis:
   LIST_TOKENS               - Listar todos os tokens válidos
   LIST_VOTES                - Listar votos registrados
   PLACAR                    - Exibir placar atual
+  SESSION                   - Listar dados completos da sessão ativa
+  LIST_SESSION              - Alias de SESSION
   CLEAR                     - Limpar console
   HELP                      - Exibir ajuda
   EXIT                      - Sair
@@ -193,6 +195,44 @@ function handlePlacar(): void {
   console.log(`  opcao_B: ${sessao.placar_atual.opcao_B}`);
 }
 
+function handleSession(): void {
+  const sessao = sessionStore.getDefault();
+  const tokensAutorizadosAVotar = sessao.tokens_autorizados.filter(
+    (token) => !sessao.tokens_que_ja_votaram.includes(token)
+  );
+
+  logger.info("CONSOLE", "Sessão listada no terminal", {
+    sessao_id: sessao.sessao_id,
+    total_tokens_a_votar: tokensAutorizadosAVotar.length,
+    total_votos: sessao.votos_realizados.length,
+  });
+
+  console.log("─── Sessão Ativa ───────────────────────");
+  console.log(`Sessão: ${sessao.sessao_id}`);
+  console.log(`Placar: A=${sessao.placar_atual.opcao_A} | B=${sessao.placar_atual.opcao_B}`);
+  console.log(`Tokens autorizados a votar (${tokensAutorizadosAVotar.length}):`);
+  for (const token of tokensAutorizadosAVotar) {
+    console.log(`  - ${token}`);
+  }
+
+  console.log(`Tokens que já votaram (${sessao.tokens_que_ja_votaram.length}):`);
+  for (const token of sessao.tokens_que_ja_votaram) {
+    console.log(`  - ${token}`);
+  }
+
+  console.log(`Votos registrados (${sessao.votos_realizados.length}):`);
+  for (const voto of sessao.votos_realizados) {
+    console.log(`  - ${voto.token} → ${voto.voto} (${voto.timestamp})`);
+  }
+
+  console.log("Canais/Eventos:");
+  console.log(`  - cast_vote: ${SOCKET_EVENTS.CAST_VOTE}`);
+  console.log(`  - client_register: ${SOCKET_EVENTS.CLIENT_REGISTER}`);
+  console.log(`  - client_registered: ${SOCKET_EVENTS.CLIENT_REGISTERED}`);
+  console.log(`  - placar_atualizado: ${placarChannel(sessao.sessao_id)}`);
+  console.log("───────────────────────────────────────");
+}
+
 function handleCommand(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) {
@@ -233,6 +273,10 @@ function handleCommand(line: string): boolean {
       break;
     case "PLACAR":
       handlePlacar();
+      break;
+    case "SESSION":
+    case "LIST_SESSION":
+      handleSession();
       break;
     case "CLEAR":
       clearConsole();
