@@ -5,11 +5,21 @@ export interface PlacarAtual {
   opcao_B: number;
 }
 
+export interface VotoRegistrado {
+  token: string;
+  voto: VoteOption;
+  timestamp: string;
+  sessao_id?: string;
+  ip?: string;
+  socket_id?: string;
+}
+
 export interface SessaoVotacao {
   sessao_id: string;
   placar_atual: PlacarAtual;
   tokens_autorizados: string[];
   tokens_que_ja_votaram: string[];
+  votos_realizados: VotoRegistrado[];
 }
 
 export interface ParsedCastVote {
@@ -29,9 +39,36 @@ export interface VoteError {
   message: string;
 }
 
+export interface VoteContext {
+  sessao_id: string;
+  socket_id?: string;
+  ip?: string;
+}
+
+export interface DuplicateVoteContext {
+  token: string;
+  voto_anterior: VoteOption;
+  voto_tentado: VoteOption;
+  timestamp_voto_anterior: string;
+  tentativa_reversao: boolean;
+}
+
 export type VoteResult =
-  | { success: true; placar: PlacarAtual }
-  | { success: false; error: VoteError };
+  | { success: true; placar: PlacarAtual; voto: VotoRegistrado }
+  | {
+      success: false;
+      error: VoteError;
+      duplicate?: DuplicateVoteContext;
+    };
+
+export interface TokenAuthStatus {
+  token: string;
+  autorizado: boolean;
+  votou: boolean;
+  voto_registrado?: VoteOption;
+  timestamp_voto?: string;
+  pode_votar: boolean;
+}
 
 export const CAST_VOTE_PREFIX = "CAST_VOTE";
 export const VALID_OPTIONS: readonly VoteOption[] = ["opcao_A", "opcao_B"];

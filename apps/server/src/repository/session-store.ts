@@ -1,13 +1,13 @@
-import { SessaoVotacao } from "../domain/types";
+import { SessaoVotacao, VotoRegistrado } from "../domain/types";
 
 function createEmptyPlacar() {
   return { opcao_A: 0, opcao_B: 0 };
 }
 
 const DEFAULT_TOKENS = [
-  "TK_CONDOMINO_001",
-  "TK_CONDOMINO_002",
-  "TK_CONDOMINO_003",
+  "token_001_eleitor_001",
+  "token_002_eleitor_002",
+  "token_003_eleitor_003",
   "TK_CONDOMINO_450",
 ];
 
@@ -24,6 +24,7 @@ export class SessionStore {
       placar_atual: createEmptyPlacar(),
       tokens_autorizados: [...DEFAULT_TOKENS],
       tokens_que_ja_votaram: [],
+      votos_realizados: [],
     };
 
     this.sessions.set(sessao.sessao_id, sessao);
@@ -41,6 +42,27 @@ export class SessionStore {
 
   create(sessao: SessaoVotacao): void {
     this.sessions.set(sessao.sessao_id, sessao);
+  }
+
+  createFromPayload(payload: {
+    session_id: string;
+    opcoes?: string[];
+    tokens_autorizados: string[];
+  }): SessaoVotacao {
+    const sessao: SessaoVotacao = {
+      sessao_id: payload.session_id,
+      placar_atual: createEmptyPlacar(),
+      tokens_autorizados: [...payload.tokens_autorizados],
+      tokens_que_ja_votaram: [],
+      votos_realizados: [],
+    };
+
+    this.sessions.set(sessao.sessao_id, sessao);
+    return sessao;
+  }
+
+  findVoteByToken(sessao: SessaoVotacao, token: string): VotoRegistrado | undefined {
+    return sessao.votos_realizados.find((voto) => voto.token === token);
   }
 
   list(): SessaoVotacao[] {

@@ -11,7 +11,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true
+    "declaration": true,
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*", "../../script.ts"],
   "exclude": ["node_modules", "dist"]

@@ -5,6 +5,17 @@ import { Server } from "socket.io";
 
 import { placarChannel, SOCKET_EVENTS } from "./domain/types";
 import { processVote } from "./domain/vote-validator";
+import {
+  buildVoteContext,
+  logConnection,
+  logDisconnection,
+  logDuplicateVote,
+  logInvalidFormat,
+  logUnauthorizedVote,
+  logVoteAccepted,
+  logVoteSummary,
+} from "./handlers/vote-handler";
+import { logger } from "./loggers/logger";
 import { sessionStore } from "./repository/session-store";
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -27,7 +38,7 @@ app.get("/", (_req, res) => {
   res.json({
     service: "Digital Assembly Voting Server",
     status: "online",
-    version: "0.1.0",
+    version: "0.2.0",
     websocket: true,
     defaultSession: DEFAULT_SESSAO_ID,
   });
@@ -50,6 +61,39 @@ app.get("/sessions/:sessaoId", (req, res) => {
     placar_atual: sessao.placar_atual,
     total_autorizados: sessao.tokens_autorizados.length,
     total_votaram: sessao.tokens_que_ja_votaram.length,
+    votos_realizados: sessao.votos_realizados,
+  });
+});
+
+app.post("/api/sessions", (req, res) => {
+  const { session_id, tokens_autorizados } = req.body ?? {};
+
+  if (!session_id || !Array.isArray(tokens_autorizados)) {
+    res.status(400).json({
+      error: "Campos obrigatórios: session_id, tokens_autorizados[]",
+    });
+    return;
+  }
+
+  if (sessionStore.get(session_id)) {
+    res.status(409).json({ error: "Sessão já existe." });
+    return;
+  }
+
+  const sessao = sessionStore.createFromPayload({
+    session_id,
+    tokens_autorizados,
+    opcoes: req.body.opcoes,
+  });
+
+  logger.success("SESSION", "Sessão de votação criada", {
+    sessao_id: sessao.sessao_id,
+    total_tokens: sessao.tokens_autorizados.length,
+  });
+
+  res.status(201).json({
+    session_id: sessao.sessao_id,
+    status: "OPEN",
   });
 });
 
@@ -57,6 +101,7 @@ io.on("connection", (socket) => {
   const sessao = sessionStore.getDefault();
 
   socket.join(sessao.sessao_id);
+  logConnection(socket.id, sessao.sessao_id);
 
   socket.emit(SOCKET_EVENTS.CONNECTION_ACK, {
     message: "Conectado ao servidor de votação.",
@@ -64,35 +109,43 @@ io.on("connection", (socket) => {
     placar_atual: sessao.placar_atual,
   });
 
-  console.log(`[socket] Cliente conectado: ${socket.id}`);
-
   socket.on(SOCKET_EVENTS.CAST_VOTE, (payload: unknown) => {
     const payloadStr = typeof payload === "string" ? payload : String(payload);
-    const result = processVote(sessao, payloadStr);
+    const context = buildVoteContext(sessao, socket);
+    const result = processVote(sessao, payloadStr, context);
 
     if (!result.success) {
+      if (result.error.code === "FORMATO_INVALIDO") {
+        logInvalidFormat(payloadStr, context);
+      } else if (result.error.code === "TOKEN_NAO_AUTORIZADO") {
+        const token = payloadStr.split("|")[1] ?? "desconhecido";
+        logUnauthorizedVote(token, context, payloadStr);
+      } else if (result.error.code === "VOTO_DUPLICADO" && result.duplicate) {
+        logDuplicateVote(result.duplicate, context, payloadStr);
+      }
+
       socket.emit(SOCKET_EVENTS.VOTE_ERROR, result.error);
-      console.log(
-        `[vote] Rejeitado (${socket.id}): ${result.error.code} — ${payloadStr}`
-      );
       return;
     }
 
     const channel = placarChannel(sessao.sessao_id);
     io.to(sessao.sessao_id).emit(channel, result.placar);
 
-    console.log(
-      `[vote] Registrado (${socket.id}): ${payloadStr} → A=${result.placar.opcao_A} B=${result.placar.opcao_B}`
-    );
+    logVoteAccepted(result, payloadStr);
+    logVoteSummary(sessao);
   });
 
   socket.on("disconnect", () => {
-    console.log(`[socket] Cliente desconectado: ${socket.id}`);
+    logDisconnection(socket.id);
   });
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
-  console.log(`WebSocket (Socket.io) ativo na mesma porta`);
-  console.log(`Sessão padrão: ${DEFAULT_SESSAO_ID}`);
+  logger.info("SERVER", "Servidor iniciado", {
+    url: `http://localhost:${PORT}`,
+    websocket: `ws://localhost:${PORT}`,
+  });
+  logger.info("SERVER", "Sistema aguardando conexões...", {
+    sessao_padrao: DEFAULT_SESSAO_ID,
+  });
 });

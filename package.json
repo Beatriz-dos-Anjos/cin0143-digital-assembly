@@ -10,6 +10,7 @@
     "dev:server": "npm run dev --workspace=apps/server",
     "build": "npm run build --workspace=apps/server",
     "start": "npm run start --workspace=apps/server",
+    "console": "npm run console --workspace=apps/server",
     "test": "npm run test --workspace=apps/server",
     "vote:test": "tsx script.ts"
   },

@@ -8,6 +8,7 @@ function createTestSession(): SessaoVotacao {
     placar_atual: { opcao_A: 0, opcao_B: 0 },
     tokens_autorizados: ["TK_USER1", "TK_USER2"],
     tokens_que_ja_votaram: [],
+    votos_realizados: [],
   };
 }
 
