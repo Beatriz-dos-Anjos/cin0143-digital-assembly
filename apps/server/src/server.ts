@@ -5,7 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 import { placarChannel, SOCKET_EVENTS } from "./domain/types";
-import { processVote } from "./domain/vote-validator";
+import { processVote, getTokenStatus } from "./domain/vote-validator";
 import {
   buildVoteContext,
   logConnection,
@@ -199,6 +199,28 @@ io.on("connection", (socket) => {
 
     logVoteAccepted(result, payloadStr);
     logVoteSummary(sessao);
+  });
+
+  socket.on("token_status_request", (token: unknown) => {
+    const tokenStr = typeof token === "string" ? token : String(token);
+    const status = getTokenStatus(sessao, tokenStr);
+    socket.emit("token_status_response", status);
+  });
+
+  socket.on("generate_token_request", () => {
+    const token = createClientToken();
+    sessionStore.addAuthorizedToken(sessao.sessao_id, token);
+    
+    logger.success("WEBSOCKET", "Token gerado via console de votação", {
+      token,
+      sessao_id: sessao.sessao_id,
+    });
+
+    socket.emit("generate_token_response", { token });
+  });
+
+  socket.on("list_votes_request", () => {
+    socket.emit("list_votes_response", { votos: sessao.votos_realizados });
   });
 
   socket.on("disconnect", () => {

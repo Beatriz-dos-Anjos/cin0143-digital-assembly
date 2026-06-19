@@ -1,19 +1,14 @@
 import * as readline from "readline";
-import { randomUUID } from "crypto";
+import { io, Socket } from "socket.io-client";
+import { SOCKET_EVENTS, VoteOption, PlacarAtual, VotoRegistrado } from "./domain/types";
 
-import { SOCKET_EVENTS, VoteOption, placarChannel } from "./domain/types";
-import {
-  getTokenStatus,
-  processVote,
-} from "./domain/vote-validator";
-import { formatCastVote } from "./domain/vote-parser";
-import { logger } from "./loggers/logger";
-import {
-  logDuplicateVote,
-  logUnauthorizedVote,
-  logVoteAccepted,
-} from "./handlers/vote-handler";
-import { sessionStore } from "./repository/session-store";
+const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
+let socket: Socket;
+let rl: readline.Interface | null = null;
+let currentSessionId = "assembleia-2026-01";
+let placarAtual: PlacarAtual = { sim: 0, nao: 0 };
+
+let pendingCommand: "AUTH" | "STATUS" | "LIST_TOKENS" | "SESSION" | "VOTE" | null = null;
 
 const BANNER = `
 ╔════════════════════════════════════════════════════════════╗
@@ -56,198 +51,17 @@ function parseQuotedArgs(input: string): string[] {
   return args;
 }
 
-function isVoteOption(value: string): value is VoteOption {
-  return value === "sim" || value === "nao";
-}
-
-function handleAuth(token: string): void {
-  const sessao = sessionStore.getDefault();
-  const status = getTokenStatus(sessao, token);
-
-  if (!status.autorizado) {
-    console.log("✗ Token não autorizado");
-    console.log(`  ├─ Token: ${token}`);
-    console.log("  ├─ Status: NÃO ENCONTRADO NA LISTA");
-    console.log("  └─ Ação: Acesso negado");
-    return;
-  }
-
-  console.log("✓ Token válido e autorizado");
-
-  if (status.votou) {
-    console.log("✗ Token já exerceu direito de voto");
-    console.log(`  ├─ Voto registrado: ${status.voto_registrado}`);
-    console.log(`  └─ Timestamp: ${status.timestamp_voto}`);
-    return;
-  }
-
-  console.log("✓ Token nunca votou antes");
-  console.log("Status: PRONTO PARA VOTAR");
-}
-
-function handleStatus(token: string): void {
-  const sessao = sessionStore.getDefault();
-  const status = getTokenStatus(sessao, token);
-
-  console.log("─── Status do Token ───────────────────");
-  console.log(`Token: ${status.token}`);
-  console.log(`Autorizado: ${status.autorizado ? "SIM" : "NÃO"}`);
-  console.log(`Votou: ${status.votou ? "SIM" : "NÃO"}`);
-
-  if (status.voto_registrado) {
-    console.log(`Voto registrado: "${status.voto_registrado}"`);
-    console.log(`Timestamp do voto: ${status.timestamp_voto}`);
-  }
-
-  console.log(`Pode votar novamente: ${status.pode_votar ? "SIM" : "NÃO"}`);
-  console.log("─────────────────────────────────────");
-}
-
-function handleVote(token: string, opcao: string): void {
-  if (!isVoteOption(opcao)) {
-    console.log("✗ Opção inválida. Use sim ou nao.");
-    return;
-  }
-
-  const sessao = sessionStore.getDefault();
-  const payload = formatCastVote(token, opcao);
-  const result = processVote(sessao, payload, {
-    sessao_id: sessao.sessao_id,
-    socket_id: "console_local",
-    ip: "127.0.0.1",
-  });
-
-  if (!result.success) {
-    if (result.error.code === "TOKEN_NAO_AUTORIZADO") {
-      logUnauthorizedVote(token, {
-        sessao_id: sessao.sessao_id,
-        socket_id: "console_local",
-        ip: "127.0.0.1",
-      }, payload);
-
-      console.log("✗ VOTO REJEITADO - Token não autorizado");
-      console.log(`  ├─ Token: ${token}`);
-      console.log("  ├─ Motivo: Token não consta na lista de autorizados");
-      console.log("  └─ Ação: Voto recusado");
-      return;
-    }
-
-    if (result.error.code === "VOTO_DUPLICADO" && result.duplicate) {
-      logDuplicateVote(
-        result.duplicate,
-        {
-          sessao_id: sessao.sessao_id,
-          socket_id: "console_local",
-          ip: "127.0.0.1",
-        },
-        payload
-      );
-
-      console.log("✗ VOTO REJEITADO - Duplicidade detectada");
-      console.log(`  ├─ Token: ${token}`);
-      console.log("  ├─ Motivo: Token já exerceu direito de voto");
-      console.log(`  ├─ Voto anterior: ${result.duplicate.voto_anterior}`);
-      console.log(`  ├─ Hora anterior: ${result.duplicate.timestamp_voto_anterior}`);
-      console.log("  └─ Ação: Voto recusado, log registrado");
-      return;
-    }
-
-    console.log(`✗ ${result.error.message}`);
-    return;
-  }
-
-  logVoteAccepted(result, payload);
-
-  console.log("✓ Voto registrado com sucesso!");
-  console.log(`  ├─ Token: ${token}`);
-  console.log(`  ├─ Voto: ${opcao}`);
-  console.log(`  ├─ Timestamp: ${result.voto.timestamp}`);
-  console.log("  └─ Status: VOTAÇÃO CONCLUÍDA");
-}
-
-function handleGenerateToken(): void {
-  const sessao = sessionStore.getDefault();
-  const token = `TK_AUTO_${randomUUID().slice(0, 8).toUpperCase()}`;
-  sessionStore.addAuthorizedToken(sessao.sessao_id, token);
-  console.log(`✓ Token gerado e autorizado com sucesso!`);
-  console.log(`  ├─ Token: ${token}`);
-  console.log(`  └─ Status: PRONTO PARA VOTAR`);
-}
-
-function handleListTokens(): void {
-  const sessao = sessionStore.getDefault();
-
-  console.log("Tokens autorizados:");
-  for (const token of sessao.tokens_autorizados) {
-    console.log(`  - ${token}`);
+function promptUser(): void {
+  if (rl) {
+    rl.prompt();
   }
 }
 
-function handleListVotes(): void {
-  const sessao = sessionStore.getDefault();
-
-  if (sessao.votos_realizados.length === 0) {
-    console.log("Nenhum voto registrado ainda.");
-    return;
-  }
-
-  console.log("Votos registrados:");
-  for (const voto of sessao.votos_realizados) {
-    console.log(
-      `  - ${voto.token} → ${voto.voto} (${voto.timestamp})`
-    );
-  }
-}
-
-function handlePlacar(): void {
-  const sessao = sessionStore.getDefault();
-  console.log("Placar atual:");
-  console.log(`  sim: ${sessao.placar_atual.sim}`);
-  console.log(`  nao: ${sessao.placar_atual.nao}`);
-}
-
-function handleSession(): void {
-  const sessao = sessionStore.getDefault();
-  const tokensAutorizadosAVotar = sessao.tokens_autorizados.filter(
-    (token) => !sessao.tokens_que_ja_votaram.includes(token)
-  );
-
-  logger.info("CONSOLE", "Sessão listada no terminal", {
-    sessao_id: sessao.sessao_id,
-    total_tokens_a_votar: tokensAutorizadosAVotar.length,
-    total_votos: sessao.votos_realizados.length,
-  });
-
-  console.log("─── Sessão Ativa ───────────────────────");
-  console.log(`Sessão: ${sessao.sessao_id}`);
-  console.log(`Placar: A=${sessao.placar_atual.sim} | B=${sessao.placar_atual.nao}`);
-  console.log(`Tokens autorizados a votar (${tokensAutorizadosAVotar.length}):`);
-  for (const token of tokensAutorizadosAVotar) {
-    console.log(`  - ${token}`);
-  }
-
-  console.log(`Tokens que já votaram (${sessao.tokens_que_ja_votaram.length}):`);
-  for (const token of sessao.tokens_que_ja_votaram) {
-    console.log(`  - ${token}`);
-  }
-
-  console.log(`Votos registrados (${sessao.votos_realizados.length}):`);
-  for (const voto of sessao.votos_realizados) {
-    console.log(`  - ${voto.token} → ${voto.voto} (${voto.timestamp})`);
-  }
-
-  console.log("Canais/Eventos:");
-  console.log(`  - cast_vote: ${SOCKET_EVENTS.CAST_VOTE}`);
-  console.log(`  - client_register: ${SOCKET_EVENTS.CLIENT_REGISTER}`);
-  console.log(`  - client_registered: ${SOCKET_EVENTS.CLIENT_REGISTERED}`);
-  console.log(`  - placar_atualizado: ${placarChannel(sessao.sessao_id)}`);
-  console.log("───────────────────────────────────────");
-}
-
-function handleCommand(line: string): boolean {
+function handleCommand(line: string): void {
   const trimmed = line.trim();
   if (!trimmed) {
-    return true;
+    promptUser();
+    return;
   }
 
   const args = parseQuotedArgs(trimmed);
@@ -257,82 +71,235 @@ function handleCommand(line: string): boolean {
     case "GENERATE":
     case "GENERATE_TOKEN":
     case "GEN":
-      handleGenerateToken();
+      console.log("Solicitando geração de token ao servidor...");
+      socket.emit("generate_token_request");
       break;
+
     case "AUTH":
       if (!args[1]) {
         console.log("Uso: AUTH <token>");
+        promptUser();
         break;
       }
-      handleAuth(args[1]);
+      pendingCommand = "AUTH";
+      socket.emit("token_status_request", args[1]);
       break;
+
     case "VOTE":
     case "CAST":
       if (!args[1] || !args[2]) {
         console.log("Uso: VOTE <token> <sim|nao>");
+        promptUser();
         break;
       }
-      handleVote(args[1], args[2]);
+      const token = args[1];
+      const opcao = args[2].toLowerCase();
+      if (opcao !== "sim" && opcao !== "nao") {
+        console.log("✗ Opção inválida. Use sim ou nao.");
+        promptUser();
+        break;
+      }
+      pendingCommand = "VOTE";
+      const payload = `CAST_VOTE|${token}|${opcao}`;
+      console.log(`Enviando voto ao servidor...`);
+      socket.emit("cast_vote", payload);
       break;
+
     case "STATUS":
       if (!args[1]) {
         console.log("Uso: STATUS <token>");
+        promptUser();
         break;
       }
-      handleStatus(args[1]);
+      pendingCommand = "STATUS";
+      socket.emit("token_status_request", args[1]);
       break;
+
     case "LIST_TOKENS":
-      handleListTokens();
+      pendingCommand = "LIST_TOKENS";
+      socket.emit("session_request");
       break;
+
     case "LIST_VOTES":
-      handleListVotes();
+      console.log("Solicitando lista de votos...");
+      socket.emit("list_votes_request");
       break;
+
     case "PLACAR":
-      handlePlacar();
+      console.log("Placar atual (em cache):");
+      console.log(`  sim: ${placarAtual.sim}`);
+      console.log(`  nao: ${placarAtual.nao}`);
+      promptUser();
       break;
+
     case "SESSION":
     case "LIST_SESSION":
-      handleSession();
+      pendingCommand = "SESSION";
+      socket.emit("session_request");
       break;
+
     case "CLEAR":
       clearConsole();
+      promptUser();
       break;
+
     case "HELP":
       console.log(HELP);
+      promptUser();
       break;
+
     case "EXIT":
     case "QUIT":
       console.log("Encerrando console de votação...");
-      return false;
+      socket.disconnect();
+      rl?.close();
+      break;
+
     default:
       console.log(`Comando desconhecido: ${command}. Digite HELP para ajuda.`);
+      promptUser();
   }
+}
 
-  return true;
+function setupSocketListeners(): void {
+  socket.on("connect", () => {
+    // console.log("Conectado ao servidor de votação.");
+  });
+
+  socket.on("connection_ack", (data: any) => {
+    currentSessionId = data.sessao_id;
+    placarAtual = data.placar_atual;
+
+    socket.on(`placar_atualizado_${data.sessao_id}`, (placar: PlacarAtual) => {
+      placarAtual = placar;
+      if (pendingCommand === "VOTE") {
+        console.log(`✓ Voto registrado com sucesso!`);
+        pendingCommand = null;
+      } else {
+        console.log(`\n📢 [Notificação Broadcast] Voto registrado em outro terminal! Placar atualizado: SIM=${placar.sim} | NÃO=${placar.nao}`);
+      }
+      promptUser();
+    });
+  });
+
+  socket.on("generate_token_response", (data: { token: string }) => {
+    console.log(`✓ Token gerado e autorizado com sucesso!`);
+    console.log(`  ├─ Token: ${data.token}`);
+    console.log(`  └─ Status: PRONTO PARA VOTAR`);
+    promptUser();
+  });
+
+  socket.on("token_status_response", (status: any) => {
+    if (pendingCommand === "AUTH") {
+      if (!status.autorizado) {
+        console.log("✗ Token não autorizado");
+        console.log(`  ├─ Token: ${status.token}`);
+        console.log("  ├─ Status: NÃO ENCONTRADO NA LISTA");
+        console.log("  └─ Ação: Acesso negado");
+      } else {
+        console.log("✓ Token válido e autorizado");
+        if (status.votou) {
+          console.log("✗ Token já exerceu direito de voto");
+          console.log(`  ├─ Voto registrado: ${status.voto_registrado}`);
+          console.log(`  └─ Timestamp: ${status.timestamp_voto}`);
+        } else {
+          console.log("✓ Token nunca votou antes");
+          console.log("Status: PRONTO PARA VOTAR");
+        }
+      }
+    } else if (pendingCommand === "STATUS") {
+      console.log("─── Status do Token ───────────────────");
+      console.log(`Token: ${status.token}`);
+      console.log(`Autorizado: ${status.autorizado ? "SIM" : "NÃO"}`);
+      console.log(`Votou: ${status.votou ? "SIM" : "NÃO"}`);
+      if (status.voto_registrado) {
+        console.log(`Voto registrado: "${status.voto_registrado}"`);
+        console.log(`Timestamp do voto: ${status.timestamp_voto}`);
+      }
+      console.log(`Pode votar novamente: ${status.pode_votar ? "SIM" : "NÃO"}`);
+      console.log("─────────────────────────────────────");
+    }
+    pendingCommand = null;
+    promptUser();
+  });
+
+  socket.on("list_votes_response", (data: { votos: VotoRegistrado[] }) => {
+    if (data.votos.length === 0) {
+      console.log("Nenhum voto registrado ainda.");
+    } else {
+      console.log("Votos registrados:");
+      for (const voto of data.votos) {
+        console.log(`  - ${voto.token} → ${voto.voto} (${voto.timestamp})`);
+      }
+    }
+    promptUser();
+  });
+
+  socket.on("session_data", (data: any) => {
+    if (pendingCommand === "LIST_TOKENS") {
+      console.log("Tokens autorizados a votar (ainda aptos):");
+      if (data.tokens_autorizados.length === 0) {
+        console.log("  (Nenhum token disponível ou todos já votaram)");
+      } else {
+        for (const token of data.tokens_autorizados) {
+          console.log(`  - ${token}`);
+        }
+      }
+    } else if (pendingCommand === "SESSION") {
+      console.log("─── Sessão Ativa ───────────────────────");
+      console.log(`Sessão: ${data.sessao_id}`);
+      console.log(`Placar: SIM=${data.placar_atual.sim} | NÃO=${data.placar_atual.nao}`);
+      console.log(`Tokens ainda aptos a votar (${data.tokens_autorizados.length}):`);
+      if (data.tokens_autorizados.length === 0) {
+        console.log("  - (Nenhum token apto)");
+      } else {
+        for (const token of data.tokens_autorizados) {
+          console.log(`  - ${token}`);
+        }
+      }
+      console.log(`Tokens que já votaram (${data.tokens_que_ja_votaram.length}):`);
+      if (data.tokens_que_ja_votaram.length === 0) {
+        console.log("  - (Nenhum token votou)");
+      } else {
+        for (const token of data.tokens_que_ja_votaram) {
+          console.log(`  - ${token}`);
+        }
+      }
+      console.log("───────────────────────────────────────");
+    }
+    pendingCommand = null;
+    promptUser();
+  });
+
+  socket.on("vote_error", (error: any) => {
+    console.log(`✗ VOTO REJEITADO - ${error.message} (${error.code})`);
+    pendingCommand = null;
+    promptUser();
+  });
+
+  socket.on("connect_error", (error: any) => {
+    console.error("\nErro de conexão com o servidor:", error.message);
+    rl?.close();
+    process.exit(1);
+  });
 }
 
 function startConsole(): void {
   clearConsole();
 
-  logger.info("CONSOLE", "Console de autenticação iniciado", {
-    sessao: sessionStore.getDefault().sessao_id,
-  });
+  console.log(`Conectando ao servidor de votação em ${SERVER_URL}...`);
+  socket = io(SERVER_URL);
+  
+  setupSocketListeners();
 
-  const rl = readline.createInterface({
+  rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     prompt: "votacao> ",
   });
 
-  rl.prompt();
-
   rl.on("line", (line) => {
-    const shouldContinue = handleCommand(line);
-    if (!shouldContinue) {
-      rl.close();
-      return;
-    }
-    rl.prompt();
+    handleCommand(line);
   });
 
   rl.on("close", () => {

@@ -158,7 +158,12 @@ socket.on("client_registered", (data: ClientRegistered) => {
 });
 
 socket.on("session_data", (data: SessionData) => {
-  console.log(`Snapshot solicitado ao servidor para a sessão ${data.sessao_id}.`);
+  console.log(`\n─── Snapshot da Sessão ${data.sessao_id} ───`);
+  console.log(`Placar Atual: SIM=${data.placar_atual.sim} | NÃO=${data.placar_atual.nao}`);
+  console.log(`Tokens ainda aptos a votar:`, data.tokens_autorizados);
+  console.log(`Tokens que já votaram:`, data.tokens_que_ja_votaram);
+  console.log(`───────────────────────────────────`);
+  ensurePrompt();
 });
 
 socket.on("vote_error", (error) => {
