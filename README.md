@@ -76,7 +76,9 @@ Comandos disponíveis:
 
 **Tokens de teste:**
 
-Os tokens de teste são gerados automaticamente quando o servidor é iniciado e são exibidos nos logs de inicialização. Alternativamente, no console do servidor (`npm run console`), você pode gerar um novo token autorizado dinamicamente usando o comando `GENERATE` ou `GEN`.
+Os tokens de teste não são pré-carregados ao iniciar o servidor. Eles são criados sob demanda, conforme solicitado pelo usuário:
+1. No console do servidor (`npm run console`), você pode gerar e autorizar um novo token a qualquer momento digitando o comando `GENERATE` ou `GEN`.
+2. Ao conectar um cliente via WebSocket (rodando `npm run client` ou `npm run vote:test`), o token do cliente é gerado e registrado automaticamente no servidor.
 
 ---
 
@@ -84,7 +86,7 @@ Os tokens de teste são gerados automaticamente quando o servidor é iniciado e 
 
 #### Teste 1: Voto válido (primeira votação)
 
-Para testar no console (`npm run console`), primeiro você pode listar os tokens gerados automaticamente no início do processo com `LIST_TOKENS` ou gerar um novo token com `GENERATE`. Copie o token gerado (por exemplo, `TK_AUTO_8E3F2B1D`) e execute:
+Para testar no console (`npm run console`), primeiro gere um novo token autorizado com `GENERATE`. Copie o token gerado (por exemplo, `TK_AUTO_8E3F2B1D`) e execute:
 
 ```bash
 votacao> AUTH TK_AUTO_8E3F2B1D

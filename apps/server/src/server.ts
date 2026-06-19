@@ -207,13 +207,9 @@ io.on("connection", (socket) => {
 });
 
 httpServer.listen(PORT, () => {
-  const defaultSession = sessionStore.getDefault();
   logger.info("SERVER", "Servidor iniciado", {
     url: `http://localhost:${PORT}`,
     websocket: `ws://localhost:${PORT}`,
-  });
-  logger.info("SERVER", "Tokens autorizados gerados automaticamente:", {
-    tokens: defaultSession.tokens_autorizados.join(", "),
   });
   logger.info("SERVER", "Sistema aguardando conexões...", {
     sessao_padrao: DEFAULT_SESSAO_ID,
