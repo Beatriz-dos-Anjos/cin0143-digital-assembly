@@ -1,4 +1,5 @@
 import * as readline from "readline";
+import { randomUUID } from "crypto";
 
 import { SOCKET_EVENTS, VoteOption, placarChannel } from "./domain/types";
 import {
@@ -22,6 +23,7 @@ const BANNER = `
 
 const HELP = `
 Comandos disponíveis:
+  GENERATE / GEN            - Gerar e autorizar um novo token automaticamente
   AUTH <token>              - Validar se token é autorizado
   VOTE <token> <opcao>      - Simular voto (sim ou nao)
   CAST <token> <opcao>      - Alias de VOTE
@@ -163,6 +165,15 @@ function handleVote(token: string, opcao: string): void {
   console.log("  └─ Status: VOTAÇÃO CONCLUÍDA");
 }
 
+function handleGenerateToken(): void {
+  const sessao = sessionStore.getDefault();
+  const token = `TK_AUTO_${randomUUID().slice(0, 8).toUpperCase()}`;
+  sessionStore.addAuthorizedToken(sessao.sessao_id, token);
+  console.log(`✓ Token gerado e autorizado com sucesso!`);
+  console.log(`  ├─ Token: ${token}`);
+  console.log(`  └─ Status: PRONTO PARA VOTAR`);
+}
+
 function handleListTokens(): void {
   const sessao = sessionStore.getDefault();
 
@@ -243,6 +254,11 @@ function handleCommand(line: string): boolean {
   const command = args[0]?.toUpperCase();
 
   switch (command) {
+    case "GENERATE":
+    case "GENERATE_TOKEN":
+    case "GEN":
+      handleGenerateToken();
+      break;
     case "AUTH":
       if (!args[1]) {
         console.log("Uso: AUTH <token>");

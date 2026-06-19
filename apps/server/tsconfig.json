@@ -14,6 +14,6 @@
     "declaration": true,
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*", "../../script.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

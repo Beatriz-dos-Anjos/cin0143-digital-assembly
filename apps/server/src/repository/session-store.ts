@@ -1,15 +1,19 @@
+import { randomUUID } from "crypto";
 import { SessaoVotacao, VotoRegistrado } from "../domain/types";
 
 function createEmptyPlacar() {
   return { sim: 0, nao: 0 };
 }
 
-const DEFAULT_TOKENS = [
-  "token_001_eleitor_001",
-  "token_002_eleitor_002",
-  "token_003_eleitor_003",
-  "TK_CONDOMINO_450",
-];
+function generateAutomaticTokens(count = 5): string[] {
+  const tokens: string[] = [];
+  for (let i = 0; i < count; i++) {
+    tokens.push(`TK_AUTO_${randomUUID().slice(0, 8).toUpperCase()}`);
+  }
+  return tokens;
+}
+
+const DEFAULT_TOKENS = generateAutomaticTokens(5);
 
 export class SessionStore {
   private sessions = new Map<string, SessaoVotacao>();

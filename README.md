@@ -64,21 +64,19 @@ npm run console
 Comandos disponíveis:
 
 ```
+  GENERATE / GEN        - Gerar e autorizar um novo token automaticamente
   AUTH <token>          - Validar se token é autorizado
-  VOTE <token> <voto>   - Simular voto (sim ou nao)
+  VOTE <token> <opcao>  - Simular voto (sim ou nao)
   STATUS <token>        - Verificar status do token
-  LIST_TOKENS           - Listar tokens válidos
+  LIST_TOKENS           - Listar todos os tokens válidos
   LIST_VOTES            - Listar votos registrados
   PLACAR                - Exibir placar atual
   CLEAR / HELP / EXIT
 ```
 
-**Tokens de teste pré-carregados:**
+**Tokens de teste:**
 
-- `token_001_eleitor_001`
-- `token_002_eleitor_002`
-- `token_003_eleitor_003`
-- `TK_CONDOMINO_450`
+Os tokens de teste são gerados automaticamente quando o servidor é iniciado e são exibidos nos logs de inicialização. Alternativamente, no console do servidor (`npm run console`), você pode gerar um novo token autorizado dinamicamente usando o comando `GENERATE` ou `GEN`.
 
 ---
 
@@ -86,15 +84,17 @@ Comandos disponíveis:
 
 #### Teste 1: Voto válido (primeira votação)
 
+Para testar no console (`npm run console`), primeiro você pode listar os tokens gerados automaticamente no início do processo com `LIST_TOKENS` ou gerar um novo token com `GENERATE`. Copie o token gerado (por exemplo, `TK_AUTO_8E3F2B1D`) e execute:
+
 ```bash
-votacao> AUTH token_001_eleitor_001
+votacao> AUTH TK_AUTO_8E3F2B1D
 ✓ Token válido e autorizado
 ✓ Token nunca votou antes
 Status: PRONTO PARA VOTAR
 
-votacao> VOTE token_001_eleitor_001 sim
+votacao> VOTE TK_AUTO_8E3F2B1D sim
 ✓ Voto registrado com sucesso!
-  ├─ Token: token_001_eleitor_001
+  ├─ Token: TK_AUTO_8E3F2B1D
   ├─ Voto: sim
   └─ Status: VOTAÇÃO CONCLUÍDA
 ```
@@ -102,9 +102,9 @@ votacao> VOTE token_001_eleitor_001 sim
 #### Teste 2: Voto duplicado rejeitado
 
 ```bash
-votacao> VOTE token_001_eleitor_001 nao
+votacao> VOTE TK_AUTO_8E3F2B1D nao
 ✗ VOTO REJEITADO - Duplicidade detectada
-  ├─ Token: token_001_eleitor_001
+  ├─ Token: TK_AUTO_8E3F2B1D
   ├─ Motivo: Token já exerceu direito de voto
   ├─ Voto anterior: sim
   └─ Ação: Voto recusado, log registrado
@@ -114,7 +114,7 @@ Logs gerados no servidor:
 
 ```
 [ERROR] [VOTE_VALIDATION] Voto REJEITADO - Duplicidade detectada
-  ├─ token: token_001_eleitor_001
+  ├─ token: TK_AUTO_8E3F2B1D
   ├─ voto_tentado: nao
   ├─ voto_anterior: sim
   └─ acao_tomada: Voto rejeitado, sessão mantida aberta
@@ -134,21 +134,21 @@ votacao> AUTH token_invalido_xyz
 Com o servidor rodando, em outro terminal:
 
 ```bash
-# Voto válido
+# Voto válido com geração automática de token (o script gera um token único, registra/autoriza no servidor e vota)
 npm run vote:test
 
-# Voto com token/opção customizados
-VOTE_TOKEN=token_002_eleitor_002 VOTE_OPCAO=nao npm run vote:test
+# Voto com token customizado (e opção customizada)
+VOTE_TOKEN=TK_AUTO_8E3F2B1D VOTE_OPCAO=nao npm run vote:test
 ```
 
 #### Teste 5: Múltiplos clientes simultâneos
 
-Abra 3 terminais e execute em paralelo:
+Abra 3 terminais e execute em paralelo (usando tokens válidos gerados pelo servidor ou pela ferramenta de registro de cliente):
 
 ```bash
-VOTE_TOKEN=token_001_eleitor_001 VOTE_OPCAO=sim npm run vote:test
-VOTE_TOKEN=token_002_eleitor_002 VOTE_OPCAO=nao npm run vote:test
-VOTE_TOKEN=token_003_eleitor_003 VOTE_OPCAO=sim npm run vote:test
+VOTE_TOKEN=TK_AUTO_8E3F2B1D VOTE_OPCAO=sim npm run vote:test
+VOTE_TOKEN=TK_AUTO_9F2B81C4 VOTE_OPCAO=nao npm run vote:test
+VOTE_TOKEN=TK_AUTO_3E1B9C4D VOTE_OPCAO=sim npm run vote:test
 ```
 
 ---
@@ -299,7 +299,7 @@ A comunicação entre o Cliente e o Servidor  (Express/Socket.io) é orientada a
 | **Tipo de Dado** | String de texto simples (Textual Pleno) |
 | **Delimitador** | `\|` (Pipeline) |
 | **Formato Estrito** | `CAST_VOTE\|<token>\|<opcao>` |
-| **Exemplo de Payload** | `CAST_VOTE\|TK_CONDOMINO_450\|nao` |
+| **Exemplo de Payload** | `CAST_VOTE\|TK_AUTO_8E3F2B1D\|nao` |
  
 ---
  
