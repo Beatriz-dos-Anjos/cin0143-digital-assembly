@@ -5,7 +5,7 @@ import {
   VoteOption,
 } from "./types";
 
-const CAST_VOTE_PATTERN = /^CAST_VOTE\|([^|]+)\|(opcao_A|opcao_B)$/;
+const CAST_VOTE_PATTERN = /^CAST_VOTE\|([^|]+)\|(sim|nao)$/;
 
 export function parseCastVote(payload: string): ParsedCastVote | null {
   if (typeof payload !== "string" || payload.trim() === "") {

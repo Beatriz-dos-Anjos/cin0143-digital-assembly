@@ -162,7 +162,7 @@ io.on("connection", (socket) => {
     logger.info("WEBSOCKET", "Snapshot de sessão solicitado", {
       sessao_id: currentSession.sessao_id,
       socket_id: socket.id,
-      placar_atual: `A=${currentSession.placar_atual.opcao_A} | B=${currentSession.placar_atual.opcao_B}`,
+      placar_atual: `A=${currentSession.placar_atual.sim} | B=${currentSession.placar_atual.nao}`,
       tokens_autorizados: tokensAutorizadosAVotar,
       tokens_que_ja_votaram: currentSession.tokens_que_ja_votaram,
     });

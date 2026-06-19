@@ -64,8 +64,8 @@ export function logVoteAccepted(
     sessao: result.voto.socket_id ? `sess_${result.voto.socket_id}` : undefined,
     ip: result.voto.ip,
     timestamp: result.voto.timestamp,
-    total_opcao_A: result.placar.opcao_A,
-    total_opcao_B: result.placar.opcao_B,
+    total_sim: result.placar.sim,
+    total_nao: result.placar.nao,
     payload,
   });
 }
@@ -131,8 +131,8 @@ export function logInvalidFormat(payload: string, context: VoteContext): void {
 
 export function logVoteSummary(sessao: SessaoVotacao): void {
   const total = sessao.votos_realizados.length;
-  const totalA = sessao.placar_atual.opcao_A;
-  const totalB = sessao.placar_atual.opcao_B;
+  const totalA = sessao.placar_atual.sim;
+  const totalB = sessao.placar_atual.nao;
   const percentA = total > 0 ? ((totalA / total) * 100).toFixed(1) : "0.0";
   const percentB = total > 0 ? ((totalB / total) * 100).toFixed(1) : "0.0";
   const tokensAutorizadosAVotar = getTokensAindaAptos(sessao);
@@ -140,8 +140,8 @@ export function logVoteSummary(sessao: SessaoVotacao): void {
   logger.info("VOTE_SUMMARY", "Status da votação atualizado", {
     sessao_id: sessao.sessao_id,
     votos_processados: total,
-    opcao_A: `${totalA} votos (${percentA}%)`,
-    opcao_B: `${totalB} votos (${percentB}%)`,
+    sim: `${totalA} votos (${percentA}%)`,
+    nao: `${totalB} votos (${percentB}%)`,
     tokens_autorizados_a_votar: tokensAutorizadosAVotar,
     tokens_que_ja_votaram: sessao.tokens_que_ja_votaram,
   });

@@ -5,7 +5,7 @@ import { SessaoVotacao } from "./types";
 function createTestSession(): SessaoVotacao {
   return {
     sessao_id: "test-session",
-    placar_atual: { opcao_A: 0, opcao_B: 0 },
+    placar_atual: { sim: 0, nao: 0 },
     tokens_autorizados: ["TK_USER1", "TK_USER2"],
     tokens_que_ja_votaram: [],
     votos_realizados: [],
@@ -14,12 +14,12 @@ function createTestSession(): SessaoVotacao {
 
 describe("vote-parser", () => {
   it("aceita payload no formato CAST_VOTE|<token>|<opcao>", () => {
-    const parsed = parseCastVote("CAST_VOTE|TK_USER1|opcao_A");
-    expect(parsed).toEqual({ token: "TK_USER1", opcao: "opcao_A" });
+    const parsed = parseCastVote("CAST_VOTE|TK_USER1|sim");
+    expect(parsed).toEqual({ token: "TK_USER1", opcao: "sim" });
   });
 
   it("rejeita payload malformado", () => {
-    expect(parseCastVote("VOTE|TK_USER1|opcao_A")).toBeNull();
+    expect(parseCastVote("VOTE|TK_USER1|sim")).toBeNull();
     expect(parseCastVote("CAST_VOTE|TK_USER1")).toBeNull();
     expect(parseCastVote("")).toBeNull();
     expect(isCastVoteFormat("invalid")).toBe(false);
@@ -29,19 +29,19 @@ describe("vote-parser", () => {
 describe("vote-validator", () => {
   it("registra voto válido e incrementa placar", () => {
     const sessao = createTestSession();
-    const result = processVote(sessao, "CAST_VOTE|TK_USER1|opcao_A");
+    const result = processVote(sessao, "CAST_VOTE|TK_USER1|sim");
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.placar.opcao_A).toBe(1);
-      expect(result.placar.opcao_B).toBe(0);
+      expect(result.placar.sim).toBe(1);
+      expect(result.placar.nao).toBe(0);
     }
     expect(sessao.tokens_que_ja_votaram).toContain("TK_USER1");
   });
 
   it("bloqueia token não autorizado", () => {
     const sessao = createTestSession();
-    const result = processVote(sessao, "CAST_VOTE|TK_INTRUSO|opcao_B");
+    const result = processVote(sessao, "CAST_VOTE|TK_INTRUSO|nao");
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -51,8 +51,8 @@ describe("vote-validator", () => {
 
   it("bloqueia voto duplicado", () => {
     const sessao = createTestSession();
-    processVote(sessao, "CAST_VOTE|TK_USER1|opcao_A");
-    const result = processVote(sessao, "CAST_VOTE|TK_USER1|opcao_B");
+    processVote(sessao, "CAST_VOTE|TK_USER1|sim");
+    const result = processVote(sessao, "CAST_VOTE|TK_USER1|nao");
 
     expect(result.success).toBe(false);
     if (!result.success) {

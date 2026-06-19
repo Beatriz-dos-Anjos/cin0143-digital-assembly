@@ -1,8 +1,8 @@
-export type VoteOption = "opcao_A" | "opcao_B";
+export type VoteOption = "sim" | "nao";
 
 export interface PlacarAtual {
-  opcao_A: number;
-  opcao_B: number;
+  sim: number;
+  nao: number;
 }
 
 export interface VotoRegistrado {
@@ -71,7 +71,7 @@ export interface TokenAuthStatus {
 }
 
 export const CAST_VOTE_PREFIX = "CAST_VOTE";
-export const VALID_OPTIONS: readonly VoteOption[] = ["opcao_A", "opcao_B"];
+export const VALID_OPTIONS: readonly VoteOption[] = ["sim", "nao"];
 
 export const SOCKET_EVENTS = {
   CAST_VOTE: "cast_vote",

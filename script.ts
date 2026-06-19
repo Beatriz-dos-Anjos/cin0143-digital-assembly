@@ -2,7 +2,7 @@ import { io } from "socket.io-client";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
 const TOKEN = process.env.VOTE_TOKEN ?? "token_001_eleitor_001";
-const OPCAO = process.env.VOTE_OPCAO ?? "opcao_A";
+const OPCAO = process.env.VOTE_OPCAO ?? "sim";
 
 const socket = io(SERVER_URL);
 

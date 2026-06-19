@@ -7,8 +7,8 @@ type ConnectionAck = {
   message: string;
   sessao_id: string;
   placar_atual: {
-    opcao_A: number;
-    opcao_B: number;
+    sim: number;
+    nao: number;
   };
 };
 
@@ -20,8 +20,8 @@ type ClientRegistered = {
 type SessionData = {
   sessao_id: string;
   placar_atual: {
-    opcao_A: number;
-    opcao_B: number;
+    sim: number;
+    nao: number;
   };
   tokens_autorizados: string[];
   tokens_que_ja_votaram: string[];
@@ -43,8 +43,8 @@ let scoreListenerAttached = false;
 function printHelp(): void {
   console.log("Comandos:");
   console.log("  token               - mostra o token gerado para este cliente");
-  console.log("  vote A              - envia voto para opcao_A");
-  console.log("  vote B              - envia voto para opcao_B");
+  console.log("  vote A              - envia voto para sim");
+  console.log("  vote B              - envia voto para não");
   console.log("  session             - solicita ao servidor o snapshot da sessão");
   console.log("  status              - mostra sessão e token atuais");
   console.log("  help                - exibe esta ajuda");
@@ -104,7 +104,7 @@ function startInteractivePrompt(): void {
       console.log("Solicitando snapshot da sessão ao servidor...");
     } else if (normalized === "vote") {
       const option = rawArg?.toUpperCase();
-      const voteOption = option === "A" ? "opcao_A" : option === "B" ? "opcao_B" : undefined;
+      const voteOption = option === "A" ? "sim" : option === "B" ? "nao" : undefined;
 
       if (!voteOption) {
         console.log("Uso: vote A | vote B");
@@ -116,7 +116,7 @@ function startInteractivePrompt(): void {
       console.log(`Voto enviado: ${voteOption}`);
     } else if (normalized === "exit" || normalized === "quit") {
       socket.disconnect();
-      rl.close();
+      rl?.close();
       return;
     } else {
       console.log(`Comando desconhecido: ${command}`);
@@ -141,7 +141,7 @@ socket.on("connect", () => {
 socket.on("connection_ack", (data: ConnectionAck) => {
   currentSessionId = data.sessao_id;
   console.log(`Sessão: ${data.sessao_id}`);
-  console.log(`Placar inicial: A=${data.placar_atual.opcao_A} B=${data.placar_atual.opcao_B}`);
+  console.log(`Placar inicial: SIM=${data.placar_atual.sim} NAO=${data.placar_atual.nao}`);
   attachScoreListener(data.sessao_id);
   socket.emit("client_register", { token: currentToken });
 });
@@ -166,7 +166,7 @@ socket.on("vote_error", (error) => {
 });
 
 socket.on("disconnect", () => {
-  if (rl && !rl.closed) {
+  if (rl) {
     rl.close();
   }
 });

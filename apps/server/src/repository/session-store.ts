@@ -1,7 +1,7 @@
 import { SessaoVotacao, VotoRegistrado } from "../domain/types";
 
 function createEmptyPlacar() {
-  return { opcao_A: 0, opcao_B: 0 };
+  return { sim: 0, nao: 0 };
 }
 
 const DEFAULT_TOKENS = [

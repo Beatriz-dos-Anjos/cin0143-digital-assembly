@@ -65,7 +65,7 @@ Comandos disponíveis:
 
 ```
   AUTH <token>          - Validar se token é autorizado
-  VOTE <token> <voto>   - Simular voto (opcao_A ou opcao_B)
+  VOTE <token> <voto>   - Simular voto (sim ou nao)
   STATUS <token>        - Verificar status do token
   LIST_TOKENS           - Listar tokens válidos
   LIST_VOTES            - Listar votos registrados
@@ -92,21 +92,21 @@ votacao> AUTH token_001_eleitor_001
 ✓ Token nunca votou antes
 Status: PRONTO PARA VOTAR
 
-votacao> VOTE token_001_eleitor_001 opcao_A
+votacao> VOTE token_001_eleitor_001 sim
 ✓ Voto registrado com sucesso!
   ├─ Token: token_001_eleitor_001
-  ├─ Voto: opcao_A
+  ├─ Voto: sim
   └─ Status: VOTAÇÃO CONCLUÍDA
 ```
 
 #### Teste 2: Voto duplicado rejeitado
 
 ```bash
-votacao> VOTE token_001_eleitor_001 opcao_B
+votacao> VOTE token_001_eleitor_001 nao
 ✗ VOTO REJEITADO - Duplicidade detectada
   ├─ Token: token_001_eleitor_001
   ├─ Motivo: Token já exerceu direito de voto
-  ├─ Voto anterior: opcao_A
+  ├─ Voto anterior: sim
   └─ Ação: Voto recusado, log registrado
 ```
 
@@ -115,8 +115,8 @@ Logs gerados no servidor:
 ```
 [ERROR] [VOTE_VALIDATION] Voto REJEITADO - Duplicidade detectada
   ├─ token: token_001_eleitor_001
-  ├─ voto_tentado: opcao_B
-  ├─ voto_anterior: opcao_A
+  ├─ voto_tentado: nao
+  ├─ voto_anterior: sim
   └─ acao_tomada: Voto rejeitado, sessão mantida aberta
 ```
 
@@ -138,7 +138,7 @@ Com o servidor rodando, em outro terminal:
 npm run vote:test
 
 # Voto com token/opção customizados
-VOTE_TOKEN=token_002_eleitor_002 VOTE_OPCAO=opcao_B npm run vote:test
+VOTE_TOKEN=token_002_eleitor_002 VOTE_OPCAO=nao npm run vote:test
 ```
 
 #### Teste 5: Múltiplos clientes simultâneos
@@ -146,9 +146,9 @@ VOTE_TOKEN=token_002_eleitor_002 VOTE_OPCAO=opcao_B npm run vote:test
 Abra 3 terminais e execute em paralelo:
 
 ```bash
-VOTE_TOKEN=token_001_eleitor_001 VOTE_OPCAO=opcao_A npm run vote:test
-VOTE_TOKEN=token_002_eleitor_002 VOTE_OPCAO=opcao_B npm run vote:test
-VOTE_TOKEN=token_003_eleitor_003 VOTE_OPCAO=opcao_A npm run vote:test
+VOTE_TOKEN=token_001_eleitor_001 VOTE_OPCAO=sim npm run vote:test
+VOTE_TOKEN=token_002_eleitor_002 VOTE_OPCAO=nao npm run vote:test
+VOTE_TOKEN=token_003_eleitor_003 VOTE_OPCAO=sim npm run vote:test
 ```
 
 ---
@@ -299,7 +299,7 @@ A comunicação entre o Cliente e o Servidor  (Express/Socket.io) é orientada a
 | **Tipo de Dado** | String de texto simples (Textual Pleno) |
 | **Delimitador** | `\|` (Pipeline) |
 | **Formato Estrito** | `CAST_VOTE\|<token>\|<opcao>` |
-| **Exemplo de Payload** | `CAST_VOTE\|TK_CONDOMINO_450\|opcao_B` |
+| **Exemplo de Payload** | `CAST_VOTE\|TK_CONDOMINO_450\|nao` |
  
 ---
  
@@ -315,8 +315,8 @@ A comunicação entre o Cliente e o Servidor  (Express/Socket.io) é orientada a
  
 ```json
 {
-  "opcao_A": 4,
-  "opcao_B": 2
+  "sim": 4,
+  "nao": 2
 }
 ```
 ``
@@ -331,7 +331,7 @@ sequenceDiagram
 
     Note over C: Validação UX<br/>Token preenchido?<br/>Opção selecionada?
 
-    C->>S: cast_vote<br/>CAST_VOTE|TK_001|opcao_A
+    C->>S: cast_vote<br/>CAST_VOTE|TK_001|sim
 
     S->>S: Parse do payload
     S->>S: Verificar token autorizado
@@ -342,7 +342,7 @@ sequenceDiagram
         S->>S: Incrementa placar
         S->>S: Registra token em tokens_que_ja_votaram
         S-->>C: placar_atualizado
-        Note over S,C: {opcao_A: 5, opcao_B: 3}
+        Note over S,C: {sim: 5, nao: 3}
         C->>C: Atualiza interface
         C-->>U: Exibe placar atualizado
     else Token inválido
@@ -363,15 +363,15 @@ O servidor mantém as sessões ativas em memória volátil com o seguinte esquem
 {
   "sessao_id": "string",
   "placar_atual": {
-    "opcao_A": "number",
-    "opcao_B": "number"
+    "sim": "number",
+    "nao": "number"
   },
   "tokens_autorizados": ["string"],
   "tokens_que_ja_votaram": ["string"],
   "votos_realizados": [
     {
       "token": "string",
-      "voto": "opcao_A | opcao_B",
+      "voto": "sim | nao",
       "timestamp": "string",
       "sessao_id": "string",
       "ip": "string",
@@ -389,8 +389,8 @@ Content-Type: application/json
 {
   "session_id": "ASSEMBLY_CONDOMINIO_JUN_2026",
   "opcoes": [
-    "opcao_A",
-    "opcao_B"
+    "sim",
+    "nao"
   ],
   "tokens_autorizados": [
     "TK_001",
@@ -569,8 +569,8 @@ O cliente abre uma sessão Socket.io com o servidor, solicita autorização do t
 
 ```text
 token        # mostra o token gerado para aquele cliente
-vote A       # envia voto para opcao_A
-vote B       # envia voto para opcao_B
+vote A       # envia voto para sim
+vote B       # envia voto para nao
 session      # solicita ao servidor o snapshot da sessão
 status       # mostra a sessão e o token atuais
 exit         # encerra o cliente
@@ -624,7 +624,7 @@ Esta seção detalha a implementação prática do pipeline de validação defin
 Quando uma string de payload  chega pela interface de rede WebSocket, há as seguintes validações:
  
 ```text
-Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
+Payload de Entrada: "CAST_VOTE|TK_USER1|sim"
               │
               ▼
    ┌────────────────────────────────┐
@@ -643,7 +643,7 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
               │ False
               ▼
    ┌────────────────────────────────┐
-   │  Registro (escrita)            │ ──► 1. Incrementa placar_atual['opcao_A'] em +1
+   │  Registro (escrita)            │ ──► 1. Incrementa placar_atual['sim'] em +1
    └────────────────────────────────┘     2. Insere 'TK_USER1' em tokens_que_ja_votaram
               │
               ▼

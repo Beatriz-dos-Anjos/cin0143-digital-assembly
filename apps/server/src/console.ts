@@ -23,7 +23,7 @@ const BANNER = `
 const HELP = `
 Comandos disponíveis:
   AUTH <token>              - Validar se token é autorizado
-  VOTE <token> <opcao>      - Simular voto (opcao_A ou opcao_B)
+  VOTE <token> <opcao>      - Simular voto (sim ou nao)
   CAST <token> <opcao>      - Alias de VOTE
   STATUS <token>            - Verificar status do token
   LIST_TOKENS               - Listar todos os tokens válidos
@@ -55,7 +55,7 @@ function parseQuotedArgs(input: string): string[] {
 }
 
 function isVoteOption(value: string): value is VoteOption {
-  return value === "opcao_A" || value === "opcao_B";
+  return value === "sim" || value === "nao";
 }
 
 function handleAuth(token: string): void {
@@ -103,7 +103,7 @@ function handleStatus(token: string): void {
 
 function handleVote(token: string, opcao: string): void {
   if (!isVoteOption(opcao)) {
-    console.log("✗ Opção inválida. Use opcao_A ou opcao_B.");
+    console.log("✗ Opção inválida. Use sim ou nao.");
     return;
   }
 
@@ -191,8 +191,8 @@ function handleListVotes(): void {
 function handlePlacar(): void {
   const sessao = sessionStore.getDefault();
   console.log("Placar atual:");
-  console.log(`  opcao_A: ${sessao.placar_atual.opcao_A}`);
-  console.log(`  opcao_B: ${sessao.placar_atual.opcao_B}`);
+  console.log(`  sim: ${sessao.placar_atual.sim}`);
+  console.log(`  nao: ${sessao.placar_atual.nao}`);
 }
 
 function handleSession(): void {
@@ -209,7 +209,7 @@ function handleSession(): void {
 
   console.log("─── Sessão Ativa ───────────────────────");
   console.log(`Sessão: ${sessao.sessao_id}`);
-  console.log(`Placar: A=${sessao.placar_atual.opcao_A} | B=${sessao.placar_atual.opcao_B}`);
+  console.log(`Placar: A=${sessao.placar_atual.sim} | B=${sessao.placar_atual.nao}`);
   console.log(`Tokens autorizados a votar (${tokensAutorizadosAVotar.length}):`);
   for (const token of tokensAutorizadosAVotar) {
     console.log(`  - ${token}`);
@@ -253,7 +253,7 @@ function handleCommand(line: string): boolean {
     case "VOTE":
     case "CAST":
       if (!args[1] || !args[2]) {
-        console.log("Uso: VOTE <token> <opcao_A|opcao_B>");
+        console.log("Uso: VOTE <token> <sim|nao>");
         break;
       }
       handleVote(args[1], args[2]);
