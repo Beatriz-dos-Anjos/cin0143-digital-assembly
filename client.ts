@@ -43,8 +43,9 @@ let scoreListenerAttached = false;
 function printHelp(): void {
   console.log("Comandos:");
   console.log("  token               - mostra o token gerado para este cliente");
-  console.log("  vote A              - envia voto para sim");
-  console.log("  vote B              - envia voto para não");
+  console.log("  use-token <valor>   - sobrescreve o token atual (para testar válido/inválido)");
+  console.log("  vote <token> A      - envia voto para sim usando o token informado");
+console.log("  vote <token> B      - envia voto para não usando o token informado");
   console.log("  session             - solicita ao servidor o snapshot da sessão");
   console.log("  status              - mostra sessão e token atuais");
   console.log("  help                - exibe esta ajuda");
@@ -88,7 +89,9 @@ function startInteractivePrompt(): void {
       return;
     }
 
-    const [command, rawArg] = trimmed.split(/\s+/, 2);
+    const firstSpaceIndex = trimmed.indexOf(" ");
+const command = firstSpaceIndex === -1 ? trimmed : trimmed.slice(0, firstSpaceIndex);
+const rawArg = firstSpaceIndex === -1 ? undefined : trimmed.slice(firstSpaceIndex + 1).trim();
     const normalized = command.toLowerCase();
 
     if (normalized === "help") {
@@ -102,18 +105,38 @@ function startInteractivePrompt(): void {
     } else if (normalized === "session") {
       socket.emit("session_request");
       console.log("Solicitando snapshot da sessão ao servidor...");
-    } else if (normalized === "vote") {
-      const option = rawArg?.toUpperCase();
-      const voteOption = option === "A" ? "sim" : option === "B" ? "nao" : undefined;
+    } else if (normalized === "use-token") {
+      const newToken = rawArg?.trim();
 
-      if (!voteOption) {
-        console.log("Uso: vote A | vote B");
+      if (!newToken) {
+        console.log("Uso: use-token <valor>");
         ensurePrompt();
         return;
       }
+      currentToken = newToken;
+      console.log(`Token não criado: ${currentToken}`);
+   } else if (normalized === "vote") {
+  const parts = rawArg?.trim().split(/\s+/) ?? [];
 
-      socket.emit("cast_vote", `CAST_VOTE|${currentToken}|${voteOption}`);
-      console.log(`Voto enviado: ${voteOption}`);
+  if (parts.length < 2) {
+    console.log("Uso: vote <token> <A|B>");
+    ensurePrompt();
+    return;
+  }
+
+  const [tokenArg, optionArg] = parts;
+  const option = optionArg.toUpperCase();
+  const voteOption = option === "A" ? "sim" : option === "B" ? "nao" : undefined;
+
+  if (!voteOption) {
+    console.log("Uso: vote <token> <A|B>");
+    ensurePrompt();
+    return;
+  }
+
+  socket.emit("cast_vote", `CAST_VOTE|${tokenArg}|${voteOption}`);
+  console.log(`Voto enviado: token=${tokenArg} | opcao=${voteOption}`);
+
     } else if (normalized === "exit" || normalized === "quit") {
       socket.disconnect();
       rl?.close();
