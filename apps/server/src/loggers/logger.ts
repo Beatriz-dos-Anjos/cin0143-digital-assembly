@@ -1,9 +1,3 @@
-/**
- * Logger - Sistema de logging estruturado com rotação
- * ✅ Logs estruturados em JSON
- * ✅ Rotação automática de arquivos
- * ✅ Múltiplos níveis
- */
 
 import fs from "fs";
 import path from "path";
@@ -22,9 +16,6 @@ export interface StructuredLog {
   details?: LogDetails;
 }
 
-// ============================================================================
-// CONFIGURAÇÕES
-// ============================================================================
 
 const LOGS_DIR = path.resolve(process.env.LOGS_DIR || "logs");
 const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
@@ -34,9 +25,6 @@ const LOG_FILES = {
   audit: "auditoria.log",
 } as const;
 
-// ============================================================================
-// UTILITÁRIOS
-// ============================================================================
 
 /**
  * Formata timestamp em formato legível
@@ -51,9 +39,7 @@ export function formatTimestamp(date = new Date()): string {
   );
 }
 
-/**
- * Garante que o diretório de logs existe
- */
+
 function ensureLogsDir(): void {
   if (!fs.existsSync(LOGS_DIR)) {
     fs.mkdirSync(LOGS_DIR, { recursive: true });
@@ -105,12 +91,12 @@ function rotateLogIfNeeded(logFilePath: string): void {
  */
 function formatConsoleLine(log: StructuredLog): string {
   const colors = {
-    INFO: "\x1b[36m",    // Cyan
-    SUCCESS: "\x1b[32m", // Green
-    WARNING: "\x1b[33m", // Yellow
-    ERROR: "\x1b[31m",   // Red
-    ALERT: "\x1b[35m",   // Magenta
-    AUDITORIA: "\x1b[34m", // Blue
+    INFO: "\x1b[36m",   
+    SUCCESS: "\x1b[32m", 
+    WARNING: "\x1b[33m", 
+    ERROR: "\x1b[31m",   
+    ALERT: "\x1b[35m", 
+    AUDITORIA: "\x1b[34m", 
     RESET: "\x1b[0m",
   };
 
@@ -191,13 +177,8 @@ function resolveLogFiles(level: LogLevel): string[] {
   return files;
 }
 
-// ============================================================================
-// CLASSE LOGGER
-// ============================================================================
 
-/**
- * Logger estruturado com suporte a múltiplos níveis e arquivos
- */
+
 export class Logger {
   /**
    * Registra um log com nível e detalhes
@@ -221,11 +202,9 @@ export class Logger {
       details: details && Object.keys(details).length > 0 ? details : undefined,
     };
 
-    // ✅ Exibir no console
     const formattedConsole = formatConsoleLine(entry);
     console.log(formattedConsole);
 
-    // ✅ Escrever em arquivos
     const formattedFile = formatFileLine(entry);
     for (const file of resolveLogFiles(level)) {
       appendToFile(file, formattedFile);

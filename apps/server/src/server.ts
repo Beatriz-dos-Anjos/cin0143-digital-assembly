@@ -23,41 +23,31 @@ import {
 } from "../src/handlers/vote-handler";
 import { logger } from "../../server/src/loggers/logger";
 import { sessionStore } from "../src/repository/session-store";
-import { tokenService, startTokenCleanupScheduler } from "../src/token/token-service";
+import { tokenService } from "../src/token/token-service";
 
 
-const PORT = Number(process.env.PORT) || 3001;
-const NODE_ENV = process.env.NODE_ENV || "development";
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000").split(",");
-const DEFAULT_SESSAO_ID = process.env.DEFAULT_SESSION_ID || "assembleia-2026-01";
+const PORT =  3001;
+const NODE_ENV = "development";
+const ALLOWED_ORIGINS =  "http://localhost:3000";
+const DEFAULT_SESSAO_ID =  "assembleia-2026-06";
 
 
 const socketTokens = new Map<string, string>();
 
-/**
- * Schema para criação de sessão
- */
 const CreateSessionSchema = z.object({
   session_id: z.string().min(3).max(50),
   tokens_autorizados: z.array(z.string()).min(1),
   opcoes: z.array(z.string()).optional(),
 });
 
-/**
- * Schema para registro de cliente
- */
+
 const ClientRegisterSchema = z.object({
   token: z.string().optional(),
 });
 
-// ============================================================================
-// SETUP INICIAL
-// ============================================================================
-
 const app = express();
 const httpServer = createServer(app);
 
-// ✅ CORS Seguro
 const io = new Server(httpServer, {
   cors: {
     origin: ALLOWED_ORIGINS,
@@ -66,14 +56,9 @@ const io = new Server(httpServer, {
   },
 });
 
-// ============================================================================
-// MIDDLEWARE
-// ============================================================================
 
-// ✅ Parser JSON
 app.use(express.json({ limit: "1mb" }));
 
-// ✅ CORS middleware
 app.use(
   cors({
     origin: ALLOWED_ORIGINS,
@@ -82,7 +67,6 @@ app.use(
   })
 );
 
-// ✅ Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 100, // Máximo 100 requisições por window
@@ -93,9 +77,6 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
-// ============================================================================
-// ROTAS HTTP
-// ============================================================================
 
 /**
  * Health check
@@ -124,9 +105,7 @@ app.get("/", (_req: Request, res: Response) => {
 function paramAsString(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
-/**
- * Obter dados de uma sessão
- */
+
 app.get("/sessions/:sessaoId", (req: Request, res: Response) => {
   try {
 const sessao = sessionStore.get(paramAsString(req.params.sessaoId));
@@ -148,21 +127,16 @@ const sessao = sessionStore.get(paramAsString(req.params.sessaoId));
   }
 });
 
-/**
- * Criar nova sessão
- */
+
 app.post("/api/sessions", (req: Request, res: Response) => {
   try {
-    // ✅ Validar schema
     const validatedData = CreateSessionSchema.parse(req.body);
 
-    // ✅ Verificar se sessão já existe
     if (sessionStore.get(validatedData.session_id)) {
       res.status(409).json({ error: "Sessão já existe." });
       return;
     }
 
-    // ✅ Criar sessão
     const sessao = sessionStore.createFromPayload({
       session_id: validatedData.session_id,
       tokens_autorizados: validatedData.tokens_autorizados,
@@ -189,9 +163,7 @@ app.post("/api/sessions", (req: Request, res: Response) => {
   }
 });
 
-/**
- * Adicionar token a uma sessão
- */
+
 app.post("/api/sessions/:sessaoId/tokens", (req: Request, res: Response) => {
   try {
     const { token } = req.body;
@@ -217,9 +189,7 @@ const sessao = sessionStore.addAuthorizedToken(paramAsString(req.params.sessaoId
   }
 });
 
-/**
- * Obter estatísticas globais
- */
+
 app.get("/api/statistics", (_req: Request, res: Response) => {
   try {
     const stats = sessionStore.getGlobalStatistics();
@@ -229,28 +199,19 @@ app.get("/api/statistics", (_req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// WEBSOCKET - EVENTOS
-// ============================================================================
 
-/**
- * Conexão de cliente
- */
 io.on("connection", (socket) => {
   const sessao = sessionStore.getDefault();
 
-  // ✅ Adicionar cliente ao room da sessão
   socket.join(sessao.sessao_id);
   logConnection(socket.id, sessao.sessao_id);
 
-  // ✅ Confirmar conexão
   socket.emit(SOCKET_EVENTS.CONNECTION_ACK, {
     message: "Conectado ao servidor de votação.",
     sessao_id: sessao.sessao_id,
     placar_atual: sessao.placar_atual,
   });
 
-  // ✅ Registro de cliente
   socket.on(SOCKET_EVENTS.CLIENT_REGISTER, (payload: unknown) => {
     try {
       const validated = ClientRegisterSchema.parse(
@@ -289,7 +250,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ Requisição de dados da sessão
   socket.on(SOCKET_EVENTS.SESSION_REQUEST, () => {
     const currentSession = sessionStore.getDefault();
     const tokensAutorizadosAVotar = getTokensAindaAptos(currentSession);
@@ -308,14 +268,12 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ✅ Processamento de voto
   socket.on(SOCKET_EVENTS.CAST_VOTE, (payload: unknown) => {
     const payloadStr = typeof payload === "string" ? payload : String(payload);
     const context = buildVoteContext(sessao, socket, socketTokens.get(socket.id));
     const result = processVote(sessao, payloadStr, context);
 
     if (!result.success) {
-      // ✅ Logging detalhado de erros
       if (result.error.code === "FORMATO_INVALIDO") {
         logInvalidFormat(payloadStr, context);
       } else if (result.error.code === "TOKEN_NAO_AUTORIZADO") {
@@ -329,7 +287,6 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // ✅ Broadcast do novo placar
     const channel = placarChannel(sessao.sessao_id);
     io.to(sessao.sessao_id).emit(channel, result.placar);
 
@@ -337,14 +294,12 @@ io.on("connection", (socket) => {
     logVoteSummary(sessao);
   });
 
-  // ✅ Status de token
   socket.on("token_status_request", (token: unknown) => {
     const tokenStr = typeof token === "string" ? token : String(token);
     const status = getTokenStatus(sessao, tokenStr);
     socket.emit("token_status_response", status);
   });
 
-  // ✅ Geração de novo token
   socket.on("generate_token_request", () => {
     const newToken = tokenService.generateSecureToken();
     sessionStore.addAuthorizedToken(sessao.sessao_id, newToken);
@@ -354,23 +309,18 @@ io.on("connection", (socket) => {
     socket.emit("generate_token_response", { token: newToken });
   });
 
-  // ✅ Listar votos
   socket.on("list_votes_request", () => {
     socket.emit("list_votes_response", {
       votos: sessao.votos_realizados,
     });
   });
 
-  // ✅ Desconexão
   socket.on("disconnect", () => {
     socketTokens.delete(socket.id); 
     logDisconnection(socket.id);
   });
 });
 
-// ============================================================================
-// STARTUP
-// ============================================================================
 
 httpServer.listen(PORT, () => {
   logger.success("SERVER", "Servidor iniciado com sucesso", {
@@ -385,14 +335,12 @@ httpServer.listen(PORT, () => {
     allowed_origins: ALLOWED_ORIGINS.length,
   });
 
-  // ✅ Iniciar scheduler de limpeza de tokens
-  startTokenCleanupScheduler(60);
-  logger.info("SERVER", "Scheduler de tokens iniciado");
+  logger.info("SERVER", "Sessão padrão carregada", {
+    sessao_id: sessionStore.getDefault().sessao_id,
+    total_tokens: sessionStore.getDefault().tokens_autorizados.length,
+  });
 });
 
-// ============================================================================
-// GRACEFUL SHUTDOWN
-// ============================================================================
 
 process.on("SIGTERM", () => {
   logger.alert("SERVER", "SIGTERM recebido, encerrando gracefully...");

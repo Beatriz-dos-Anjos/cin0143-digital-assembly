@@ -1,9 +1,3 @@
-/**
- * Vote Handler - Handlers de socket e logging de votos
- * ✅ Logging centralizado
- * ✅ Contexto preservado
- * ✅ Auditoria completa
- */
 
 import { Socket } from "socket.io";
 import {
@@ -15,9 +9,6 @@ import {
 import { logger, formatTimestamp } from "../loggers/logger";
 import { getTokensAindaAptos, getVotingStatistics } from "../domain/vote-validator";
 
-// ============================================================================
-// UTILITÁRIOS DE CONTEXTO
-// ============================================================================
 
 /**
  * Extrai o IP do cliente de um socket
@@ -53,9 +44,6 @@ export function buildVoteContext(sessao: SessaoVotacao, socket: Socket, socketTo
   };
 }
 
-// ============================================================================
-// LOGGING DE CONEXÃO
-// ============================================================================
 
 /**
  * Registra conexão de um cliente
@@ -79,9 +67,6 @@ export function logDisconnection(socketId: string): void {
   });
 }
 
-// ============================================================================
-// LOGGING DE VOTO ACEITO
-// ============================================================================
 
 /**
  * Registra voto aceito com sucesso
@@ -113,9 +98,6 @@ export function logVoteAccepted(
   });
 }
 
-// ============================================================================
-// LOGGING DE ERRO - TOKEN NÃO AUTORIZADO
-// ============================================================================
 
 /**
  * Registra tentativa de voto com token não autorizado
@@ -143,9 +125,6 @@ export function logUnauthorizedVote(
   });
 }
 
-// ============================================================================
-// LOGGING DE ERRO - VOTO DUPLICADO
-// ============================================================================
 
 /**
  * Registra tentativa de voto duplicado
@@ -181,10 +160,6 @@ export function logDuplicateVote(
   });
 }
 
-// ============================================================================
-// LOGGING DE ERRO - FORMATO INVÁLIDO
-// ============================================================================
-
 /**
  * Registra payload com formato inválido
  * @param payload Payload malformado
@@ -199,9 +174,6 @@ export function logInvalidFormat(payload: string, context: VoteContext): void {
   });
 }
 
-// ============================================================================
-// LOGGING DE RESUMO DE VOTAÇÃO
-// ============================================================================
 
 /**
  * Registra resumo completo da votação
@@ -222,9 +194,6 @@ export function logVoteSummary(sessao: SessaoVotacao): void {
   });
 }
 
-// ============================================================================
-// LOGGING DE EVENTOS DE SESSÃO
-// ============================================================================
 
 /**
  * Registra criação de nova sessão
@@ -273,9 +242,6 @@ export function logTokenGenerated(token: string, sessaoId: string): void {
   });
 }
 
-// ============================================================================
-// LOGGING DE ERROS DO SISTEMA
-// ============================================================================
 
 /**
  * Registra erro crítico de sistema
@@ -290,12 +256,7 @@ export function logSystemError(error: Error, context: string): void {
   });
 }
 
-/**
- * Registra erro de validação de schema
- * @param fieldName Nome do campo com erro
- * @param expectedType Tipo esperado
- * @param receivedValue Valor recebido
- */
+
 export function logValidationError(
   fieldName: string,
   expectedType: string,

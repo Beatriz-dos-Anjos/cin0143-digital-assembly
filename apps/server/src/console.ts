@@ -5,7 +5,7 @@ import { SOCKET_EVENTS, VoteOption, PlacarAtual, VotoRegistrado } from "./domain
 const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
 let socket: Socket;
 let rl: readline.Interface | null = null;
-let currentSessionId = "assembleia-2026-01";
+let currentSessionId = "assembleia-2026-06";
 let placarAtual: PlacarAtual = { sim: 0, nao: 0 };
 
 let pendingCommand: "AUTH" | "STATUS" | "LIST_TOKENS" | "SESSION" | "VOTE" | null = null;
@@ -21,7 +21,6 @@ Comandos disponíveis:
   GENERATE / GEN            - Gerar e autorizar um novo token automaticamente
   AUTH <token>              - Validar se token é autorizado
   VOTE <token> <opcao>      - Simular voto (sim ou nao)
-  CAST <token> <opcao>      - Alias de VOTE
   STATUS <token>            - Verificar status do token
   LIST_TOKENS               - Listar todos os tokens válidos
   LIST_VOTES                - Listar votos registrados
@@ -86,7 +85,6 @@ function handleCommand(line: string): void {
       break;
 
     case "VOTE":
-    case "CAST":
       if (!args[1] || !args[2]) {
         console.log("Uso: VOTE <token> <sim|nao>");
         promptUser();
@@ -176,7 +174,7 @@ function setupSocketListeners(): void {
         console.log(`✓ Voto registrado com sucesso!`);
         pendingCommand = null;
       } else {
-        console.log(`\n📢 [Notificação Broadcast] Voto registrado em outro terminal! Placar atualizado: SIM=${placar.sim} | NÃO=${placar.nao}`);
+        console.log(`\n Voto registrado em outro terminal! Placar atualizado: SIM=${placar.sim} | NÃO=${placar.nao}`);
       }
       promptUser();
     });

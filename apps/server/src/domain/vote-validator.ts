@@ -1,9 +1,3 @@
-/**
- * Validador de Voto - Processa e valida votos
- * ✅ Sem mutações diretas
- * ✅ Validações antes de qualquer modificação
- * ✅ Transação segura
- */
 
 import {
   DuplicateVoteContext,
@@ -19,9 +13,6 @@ import { parseCastVote } from "./vote-parser";
 import { formatTimestamp } from "../loggers/logger";
 import { sessionStore } from "../repository/session-store";
 
-// ============================================================================
-// VALIDAÇÃO DE TOKEN
-// ============================================================================
 
 /**
  * Obtém o status de autorização de um token
@@ -69,10 +60,6 @@ function findPreviousVote(
   return sessionStore.findVoteByToken(sessao, token);
 }
 
-// ============================================================================
-// PROCESSAMENTO DE VOTO
-// ============================================================================
-
 /**
  * Processa um voto de forma segura com validação completa
  * ✅ Validações ocorrem ANTES de qualquer mutação
@@ -88,7 +75,6 @@ export function processVote(
   payload: unknown,
   context?: VoteContext
 ): VoteResult {
-  // ✅ PASSO 1: Validar formato do payload
   const parsed = parseCastVote(payload);
 
   if (!parsed) {
@@ -103,7 +89,6 @@ export function processVote(
   }
 
   const { token, opcao } = parsed;
-    // ✅ PASSO 1.5: Validar que o token pertence a este socket ⬅️ NOVO BLOCO
   if (context?.socket_token && context.socket_token !== token) {
     return {
       success: false,
@@ -115,7 +100,6 @@ export function processVote(
     };
   }
 
-  // ✅ PASSO 2: Validar token autorizado
   if (!isTokenAuthorized(sessao, token)) {
     return {
       success: false,
@@ -127,7 +111,6 @@ export function processVote(
     };
   }
 
-  // ✅ PASSO 3: Verificar duplicação
   const votoAnterior = findPreviousVote(sessao, token);
 
   if (votoAnterior) {
@@ -150,7 +133,6 @@ export function processVote(
     };
   }
 
-  // ✅ PASSO 4: Criar novo voto (sem mutação ainda)
   const voto: VotoRegistrado = {
     token,
     voto: opcao,
@@ -160,18 +142,14 @@ export function processVote(
     socket_id: context?.socket_id,
   };
 
-  // ✅ PASSO 5: Atualizar estado de forma segura (transação)
   try {
-    // Snapshot do placar anterior
     const placarAnterior = { ...sessao.placar_atual };
 
-    // Calcular novo placar (sem mutação)
     const novosPlacar = {
       ...placarAnterior,
       [opcao]: placarAnterior[opcao] + 1,
     };
 
-    // Atualizar sessão atomicamente
     sessao.placar_atual = novosPlacar;
     sessao.tokens_que_ja_votaram = [...sessao.tokens_que_ja_votaram, token];
     sessao.votos_realizados = [...sessao.votos_realizados, voto];
@@ -182,7 +160,6 @@ export function processVote(
       voto,
     };
   } catch (error) {
-    // Reverter em caso de erro
     return {
       success: false,
       error: createVoteError(
@@ -214,9 +191,6 @@ export function castVoteFromManual(
   });
 }
 
-// ============================================================================
-// ESTATÍSTICAS E UTILITÁRIOS
-// ============================================================================
 
 /**
  * Calcula tokens ainda aptos a votar (usando Set para O(n) em vez de O(n²))

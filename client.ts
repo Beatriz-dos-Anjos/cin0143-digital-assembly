@@ -34,7 +34,7 @@ const GENERATED_TOKEN = `TK_CLIENT_${randomUUID().replace(/-/g, "").toUpperCase(
 });
 
 let currentToken = GENERATED_TOKEN;
-let currentSessionId = "assembleia-2026-01";
+let currentSessionId = "assembleia-2026-06";
 let rl: readline.Interface | null = null;
 let scoreListenerAttached = false;
 

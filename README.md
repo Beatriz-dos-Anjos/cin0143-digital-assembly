@@ -52,7 +52,7 @@ Saída esperada:
   ├─ url: http://localhost:3001
   └─ websocket: ws://localhost:3001
 [2026-06-18 19:06:32] [INFO] [SERVER] Sistema aguardando conexões...
-  └─ sessao_padrao: assembleia-2026-01
+  └─ sessao_padrao: assembleia-2026-06
 ```
 
 **3. Abrir console de testes (Terminal 2)**

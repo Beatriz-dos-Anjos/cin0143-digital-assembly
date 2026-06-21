@@ -1,25 +1,13 @@
-/**
- * Sistema de Votação Digital - Tipos Centralizados
- * Versão: 1.0.0
- */
 
-// ============================================================================
-// TIPOS BÁSICOS
-// ============================================================================
 
 /**
  * Opção de voto disponível
  */
 export type VoteOption = "sim" | "nao";
 
-/**
- * Nível de severidade de erro
- */
+
 export type ErrorSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
-/**
- * Código de erro na validação de voto
- */
 export type VoteErrorCode =
   | "FORMATO_INVALIDO"
   | "TOKEN_NAO_AUTORIZADO"
@@ -28,14 +16,8 @@ export type VoteErrorCode =
   | "SESSAO_NAO_ENCONTRADA"
   | "RATE_LIMIT_EXCEDIDO";
 
-/**
- * Nível de log
- */
 export type LogLevel = "INFO" | "SUCCESS" | "WARNING" | "ERROR" | "ALERT" | "AUDITORIA";
 
-// ============================================================================
-// INTERFACES - PLACAR E VOTOS
-// ============================================================================
 
 /**
  * Placar atual da votação
@@ -79,9 +61,6 @@ export interface DuplicateVoteContext {
   readonly tentativa_reversao: boolean;
 }
 
-// ============================================================================
-// INTERFACES - SESSÃO
-// ============================================================================
 
 /**
  * Sessão de votação com todos os dados
@@ -96,12 +75,9 @@ export interface SessaoVotacao {
   readonly encerrada_em?: string;
 }
 
-// ============================================================================
-// INTERFACES - PARSER E VALIDAÇÃO
-// ============================================================================
 
 /**
- * Voto parseado de um payload
+ * Voto parseado 
  */
 export interface ParsedCastVote {
   readonly token: string;
@@ -117,12 +93,9 @@ export interface VoteError {
   readonly severity: ErrorSeverity;
 }
 
-// ============================================================================
-// INTERFACES - RESULTADO DE OPERAÇÃO
-// ============================================================================
 
 /**
- * Resultado de processamento de voto (Union Type)
+ * Resultado de processamento de voto 
  */
 export type VoteResult =
   | {
@@ -148,10 +121,6 @@ export interface TokenAuthStatus {
   readonly pode_votar: boolean;
 }
 
-// ============================================================================
-// INTERFACES - LOGGING
-// ============================================================================
-
 /**
  * Detalhes estruturados de um log
  */
@@ -170,9 +139,6 @@ export interface StructuredLog {
   readonly details?: LogDetails;
 }
 
-// ============================================================================
-// CONSTANTES
-// ============================================================================
 
 /**
  * Prefixo do comando de voto
@@ -217,9 +183,6 @@ export const SECURITY_CONFIG = {
   MAX_SESSION_LIFETIME_MS: 604800000, // 7 dias
 } as const;
 
-// ============================================================================
-// FUNÇÕES UTILITÁRIAS
-// ============================================================================
 
 /**
  * Cria o nome do canal de broadcast para uma sessão
