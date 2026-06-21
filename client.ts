@@ -1,20 +1,15 @@
-import { randomBytes } from "crypto";
+import { randomUUID } from "crypto";
 import * as readline from "readline";
 
 import { io } from "socket.io-client";
 
-import {
-  placarChannel,
-  SECURITY_CONFIG,
-  SOCKET_EVENTS,
-  VoteOption,
-  PlacarAtual,
-} from "./apps/server/src/domain/types";
-
 type ConnectionAck = {
   message: string;
   sessao_id: string;
-  placar_atual: PlacarAtual;
+  placar_atual: {
+    sim: number;
+    nao: number;
+  };
 };
 
 type ClientRegistered = {
@@ -22,92 +17,57 @@ type ClientRegistered = {
   sessao_id: string;
 };
 
+type SessionData = {
+  sessao_id: string;
+  placar_atual: {
+    sim: number;
+    nao: number;
+  };
+  tokens_autorizados: string[];
+  tokens_que_ja_votaram: string[];
+};
+
 const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
-
-function generateToken(): string {
-  return randomBytes(SECURITY_CONFIG.TOKEN_LENGTH).toString("hex");
-}
-
-function isVoteOption(value: string): value is VoteOption {
-  return value === "sim" || value === "nao";
-}
-
-function formatPlacar(placar: PlacarAtual): string {
-  return `SIM=${placar.sim} | NAO=${placar.nao}`;
-}
-
-const socket = io(SERVER_URL, {
+const GENERATED_TOKEN = `TK_CLIENT_${randomUUID().replace(/-/g, "").toUpperCase()}`;const socket = io(SERVER_URL, {
   autoConnect: true,
   reconnection: true,
 });
 
-const generatedToken = generateToken();
-
+let currentToken = GENERATED_TOKEN;
+let currentSessionId = "assembleia-2026-06";
 let rl: readline.Interface | null = null;
-let sessionId = "";
-let currentPlacar: PlacarAtual = { sim: 0, nao: 0 };
-let registered = false;
-let scoreChannel: string | null = null;
-let hasVoted = false;
+let scoreListenerAttached = false;
 
-function printHeader(): void {
-  console.clear();
-  console.log("╔════════════════════════════════════════════════════════════╗");
-  console.log("║  Cliente de Votação Digital                               ║");
-  console.log("╚════════════════════════════════════════════════════════════╝");
-  console.log(`Servidor: ${SERVER_URL}`);
-  console.log(`Token atribuído: ${generatedToken}`);
-  if (sessionId) {
-    console.log(`Sessão: ${sessionId}`);
-  }
-  console.log(`Placar atual: ${formatPlacar(currentPlacar)}`);
-  console.log("Comandos: vote sim | vote nao | exit");
+function printHelp(): void {
+  console.log("Comandos:");
+  console.log("  token               - mostra o token gerado para este cliente");
+  console.log("  vote <token> Sim      - envia voto para sim usando o token informado");
+console.log("  vote <token> Não     - envia voto para não usando o token informado");
+  console.log("  session             - solicita ao servidor o snapshot da sessão");
+  console.log("  status              - mostra sessão e token atuais");
+  console.log("  help                - exibe esta ajuda");
+  console.log("  exit                - encerra o cliente");
 }
 
 function ensurePrompt(): void {
   if (rl) {
+    rl.setPrompt("cliente> ");
     rl.prompt();
   }
 }
 
-function sendVote(voteValue: VoteOption): void {
-  if (!registered) {
-    console.log("Cliente ainda não autenticado no servidor.");
-    ensurePrompt();
+function attachScoreListener(sessionId: string): void {
+  if (scoreListenerAttached) {
     return;
   }
 
-  if (hasVoted) {
-    console.log("Este token já votou nesta sessão. Reinicie o cliente para gerar outro token.");
-    ensurePrompt();
-    return;
-  }
-
-  socket.emit(SOCKET_EVENTS.CAST_VOTE, `CAST_VOTE|${generatedToken}|${voteValue}`);
-  console.log(`Voto enviado: ${voteValue.toUpperCase()}`);
-}
-
-function attachScoreListener(nextSessionId: string): void {
-  const nextChannel = placarChannel(nextSessionId);
-
-  if (scoreChannel === nextChannel) {
-    return;
-  }
-
-  if (scoreChannel) {
-    socket.off(scoreChannel);
-  }
-
-  scoreChannel = nextChannel;
-  socket.on(nextChannel, (placar: PlacarAtual) => {
-    currentPlacar = placar;
-    printHeader();
-    console.log(`Placar atualizado em tempo real: ${formatPlacar(placar)}`);
-    ensurePrompt();
+  scoreListenerAttached = true;
+  socket.on(`placar_atualizado_${sessionId}`, (placar) => {
+    console.log("Placar atualizado:", placar);
   });
 }
 
-function startPrompt(): void {
+function startInteractivePrompt(): void {
   if (rl) {
     return;
   }
@@ -126,28 +86,51 @@ function startPrompt(): void {
       return;
     }
 
-    const [command, rawArg] = trimmed.split(/\s+/, 2);
+    const firstSpaceIndex = trimmed.indexOf(" ");
+const command = firstSpaceIndex === -1 ? trimmed : trimmed.slice(0, firstSpaceIndex);
+const rawArg = firstSpaceIndex === -1 ? undefined : trimmed.slice(firstSpaceIndex + 1).trim();
     const normalized = command.toLowerCase();
 
-    if (normalized === "vote") {
-      const voteValue = rawArg?.toLowerCase();
+    if (normalized === "help") {
+      printHelp();
+    } else if (normalized === "token") {
+      console.log(`Token atual: ${currentToken}`);
+    } else if (normalized === "status") {
+      console.log(`Sessão: ${currentSessionId}`);
+      console.log(`Token: ${currentToken}`);
+      console.log(`Servidor: ${SERVER_URL}`);
+    } else if (normalized === "session") {
+      socket.emit("session_request");
+      console.log("Solicitando snapshot da sessão ao servidor...");
+   } else if (normalized === "vote") {
+  const parts = rawArg?.trim().split(/\s+/) ?? [];
 
-      if (!voteValue || !isVoteOption(voteValue)) {
-        console.log("Uso: vote sim | vote nao");
-        ensurePrompt();
-        return;
-      }
+  if (parts.length < 2) {
+    console.log("Uso: vote <token> <Sim|Não>");
+    ensurePrompt();
+    return;
+  }
 
-      sendVote(voteValue);
-    } else if (isVoteOption(normalized)) {
-      sendVote(normalized);
+  const [tokenArg, optionArg] = parts;
+  const option = optionArg.toUpperCase();
+  const voteOption = option === "SIM" ? "sim" : option === "NÃO" ? "nao" : undefined;
+
+  if (!voteOption) {
+    console.log("Uso: vote <token> <Sim|Não>");
+    ensurePrompt();
+    return;
+  }
+
+  socket.emit("cast_vote", `CAST_VOTE|${tokenArg}|${voteOption}`);
+  console.log(`Voto enviado: token=${tokenArg} | opcao=${voteOption}`);
+
     } else if (normalized === "exit" || normalized === "quit") {
-      console.log("Saindo da sessão...");
       socket.disconnect();
       rl?.close();
       return;
     } else {
-      console.log("Comandos disponíveis: vote sim | vote nao | exit");
+      console.log(`Comando desconhecido: ${command}`);
+      printHelp();
     }
 
     ensurePrompt();
@@ -157,49 +140,53 @@ function startPrompt(): void {
     process.exit(0);
   });
 
+  printHelp();
   ensurePrompt();
 }
 
 socket.on("connect", () => {
-  console.log(`Conectado ao servidor em ${SERVER_URL}`);
+  console.log(`Conectado ao servidor: ${SERVER_URL}`);
 });
 
 socket.on("connection_ack", (data: ConnectionAck) => {
-  sessionId = data.sessao_id;
-  currentPlacar = data.placar_atual;
-  attachScoreListener(sessionId);
-
-  socket.emit(SOCKET_EVENTS.CLIENT_REGISTER, { token: generatedToken });
+  currentSessionId = data.sessao_id;
+  console.log(`Sessão: ${data.sessao_id}`);
+  console.log(`Placar inicial: SIM=${data.placar_atual.sim} NAO=${data.placar_atual.nao}`);
+  attachScoreListener(data.sessao_id);
+  socket.emit("client_register", { token: currentToken });
 });
 
 socket.on("client_registered", (data: ClientRegistered) => {
-  sessionId = data.sessao_id;
-  registered = true;
+  currentToken = data.token;
+  currentSessionId = data.sessao_id;
 
-  printHeader();
-  console.log("Cliente autenticado para votação.");
-  startPrompt();
+  console.log("Cliente autorizado no servidor.");
+  console.log(`Token atribuído: ${currentToken}`);
+  console.log(`Sessão: ${currentSessionId}`);
+
+  startInteractivePrompt();
 });
 
-socket.on(SOCKET_EVENTS.VOTE_ACCEPTED, () => {
-  hasVoted = true;
-});
-
-socket.on(SOCKET_EVENTS.VOTE_ERROR, (error: { code: string; message: string }) => {
-  console.log(`Voto rejeitado: ${error.message} (${error.code})`);
+socket.on("session_data", (data: SessionData) => {
+  console.log(`\n─── Snapshot da Sessão ${data.sessao_id} ───`);
+  console.log(`Placar Atual: SIM=${data.placar_atual.sim} | NÃO=${data.placar_atual.nao}`);
+  console.log(`Tokens ainda aptos a votar:`, data.tokens_autorizados);
+  console.log(`Tokens que já votaram:`, data.tokens_que_ja_votaram);
+  console.log(`───────────────────────────────────`);
   ensurePrompt();
 });
 
+socket.on("vote_error", (error) => {
+  console.log("Erro de votação:", error);
+});
+
 socket.on("disconnect", () => {
-  registered = false;
+  if (rl) {
+    rl.close();
+  }
 });
 
 socket.on("connect_error", (error) => {
-  console.error(`Falha ao conectar ao servidor: ${error.message}`);
+  console.error("Falha ao conectar:", error.message);
   process.exit(1);
-});
-
-process.on("SIGINT", () => {
-  socket.disconnect();
-  process.exit(0);
 });
