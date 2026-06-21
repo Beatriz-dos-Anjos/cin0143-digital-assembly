@@ -12,22 +12,6 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 
 ---
 
-## Entrega 2 — Comunicação e Core
-
-Esta fase implementa o servidor multicliente com **Socket.io**, validação completa do comando `CAST_VOTE`, logs operacionais estruturados e console interativo para testes via terminal.
-
-### Checklist da Entrega 2
-
-| Requisito | Status | Implementação |
-|---|---|---|
-| Servidor multicliente (Socket.io) | ✅ | `apps/server/src/server.ts` |
-| Validação CAST_VOTE (token + duplicidade) | ✅ | `apps/server/src/domain/vote-validator.ts` |
-| Rejeição com logs detalhados | ✅ | `apps/server/src/handlers/vote-handler.ts` |
-| Console de autenticação/testes | ✅ | `apps/server/src/console.ts` |
-| Logs em console e arquivo | ✅ | `apps/server/src/loggers/logger.ts` → `apps/server/logs/` |
-| README com exemplos de teste | ✅ | Seção abaixo |
-
-### Quick Start (Entrega 2)
 
 **1. Instalar dependências**
 
@@ -41,8 +25,6 @@ npm install
 
 ```bash
 npm run dev
-# ou
-npm start
 ```
 
 Saída esperada:
@@ -55,7 +37,7 @@ Saída esperada:
   └─ sessao_padrao: assembleia-2026-06
 ```
 
-**3. Abrir console de testes (Terminal 2)**
+**3. Abrir console de gerenciamento (Terminal 2)**
 
 ```bash
 npm run console
