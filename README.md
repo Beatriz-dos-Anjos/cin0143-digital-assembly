@@ -13,7 +13,7 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 ---
 
 
-**1. Instalar dependências**
+**1.  Entrega 2 Específica : Instalar dependências**
 
 ```bash
 git clone <repo>
@@ -61,29 +61,17 @@ Os tokens de teste não são pré-carregados ao iniciar o servidor. Eles são cr
 
 ---
 
-### Exemplos de Clientes via Terminal (3,4..5)
+### Exemplos de Clientes via Terminal (3,4..5)]
+Abrir outros terminais simulando o cliente
 
 #### Teste 1: Voto válido (primeira votação)
 
-Para testar no console (`npm run console`), primeiro gere um novo token autorizado com `GENERATE`. Copie o token gerado (por exemplo, `TK_AUTO_8E3F2B1D`) e execute:
-
-```bash
-votacao> AUTH TK_AUTO_8E3F2B1D
-✓ Token válido e autorizado
-✓ Token nunca votou antes
-Status: PRONTO PARA VOTAR
-
-votacao> VOTE TK_AUTO_8E3F2B1D sim
-✓ Voto registrado com sucesso!
-  ├─ Token: TK_AUTO_8E3F2B1D
-  ├─ Voto: sim
-  └─ Status: VOTAÇÃO CONCLUÍDA
-```
+Para testar no cliente, pegue o token gerado e vote 'vote TOKEN Sim"
 
 #### Teste 2: Voto duplicado rejeitado
-
+Vote com um token 1 vez Na segunda , 
 ```bash
-votacao> VOTE TK_AUTO_8E3F2B1D nao
+votacao> VOTE TK_AUTO_8E3F2B1D Nao
 ✗ VOTO REJEITADO - Duplicidade detectada
   ├─ Token: TK_AUTO_8E3F2B1D
   ├─ Motivo: Token já exerceu direito de voto
@@ -108,28 +96,6 @@ votacao> AUTH token_invalido_xyz
 ✗ Token não autorizado
   ├─ Status: NÃO ENCONTRADO NA LISTA
   └─ Ação: Acesso negado
-```
-
-#### Teste 4: Voto via WebSocket (cliente remoto)
-
-Com o servidor rodando, em outro terminal:
-
-```bash
-# Voto válido com geração automática de token (o script gera um token único, registra/autoriza no servidor e vota)
-npm run vote:test
-
-# Voto com token customizado (e opção customizada)
-VOTE_TOKEN=TK_AUTO_8E3F2B1D VOTE_OPCAO=nao npm run vote:test
-```
-
-#### Teste 5: Múltiplos clientes simultâneos
-
-Abra 3 terminais e execute em paralelo (usando tokens válidos gerados pelo servidor ou pela ferramenta de registro de cliente):
-
-```bash
-VOTE_TOKEN=TK_AUTO_8E3F2B1D VOTE_OPCAO=sim npm run vote:test
-VOTE_TOKEN=TK_AUTO_9F2B81C4 VOTE_OPCAO=nao npm run vote:test
-VOTE_TOKEN=TK_AUTO_3E1B9C4D VOTE_OPCAO=sim npm run vote:test
 ```
 
 ---
