@@ -16,7 +16,6 @@ export interface StructuredLog {
   details?: LogDetails;
 }
 
-
 const LOGS_DIR = path.resolve(process.env.LOGS_DIR || "logs");
 const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
 const LOG_FILES = {
@@ -24,8 +23,6 @@ const LOG_FILES = {
   errors: "erros.log",
   audit: "auditoria.log",
 } as const;
-
-
 
 export function formatTimestamp(date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -35,13 +32,11 @@ export function formatTimestamp(date = new Date()): string {
   );
 }
 
-
 function ensureLogsDir(): void {
   if (!fs.existsSync(LOGS_DIR)) {
     fs.mkdirSync(LOGS_DIR, { recursive: true });
   }
 }
-
 
 function getFileSize(filePath: string): number {
   try {
@@ -64,8 +59,6 @@ function rotateLogIfNeeded(logFilePath: string): void {
     const rotatedPath = path.join(dir, rotatedName);
 
     fs.renameSync(logFilePath, rotatedPath);
-
-   
   }
 }
 
@@ -104,7 +97,6 @@ function formatConsoleLine(log: StructuredLog): string {
   return [header, ...detailLines].join("\n");
 }
 
-
 function formatFileLine(log: StructuredLog): string {
   const details = log.details ? JSON.stringify(log.details) : "";
   return [
@@ -115,7 +107,6 @@ function formatFileLine(log: StructuredLog): string {
     ...(details ? [`details=${details}`] : []),
   ].join(" | ");
 }
-
 
 function appendToFile(filename: string, line: string): void {
   ensureLogsDir();
@@ -142,8 +133,6 @@ function resolveLogFiles(level: LogLevel): string[] {
 
   return files;
 }
-
-
 
 export class Logger {
 

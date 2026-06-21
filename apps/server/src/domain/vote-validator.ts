@@ -13,8 +13,6 @@ import { parseCastVote } from "./vote-parser";
 import { formatTimestamp } from "../loggers/logger";
 import { sessionStore } from "../repository/session-store";
 
-
-
 export function getTokenStatus(
   sessao: SessaoVotacao,
   token: string
@@ -32,11 +30,9 @@ export function getTokenStatus(
   };
 }
 
-
 function isTokenAuthorized(sessao: SessaoVotacao, token: string): boolean {
   return sessao.tokens_autorizados.includes(token);
 }
-
 
 function findPreviousVote(
   sessao: SessaoVotacao,
@@ -44,7 +40,6 @@ function findPreviousVote(
 ): VotoRegistrado | undefined {
   return sessionStore.findVoteByToken(sessao, token);
 }
-
 
 export function processVote(
   sessao: SessaoVotacao,
@@ -147,7 +142,6 @@ export function processVote(
   }
 }
 
-
 export function castVoteFromManual(
   sessao: SessaoVotacao,
   token: string,
@@ -159,13 +153,10 @@ export function castVoteFromManual(
   });
 }
 
-
-
 export function getTokensAindaAptos(sessao: SessaoVotacao): string[] {
   const votadosSet = new Set(sessao.tokens_que_ja_votaram);
   return sessao.tokens_autorizados.filter((token) => !votadosSet.has(token));
 }
-
 
 export function calculatePercentage(
   votos: number,

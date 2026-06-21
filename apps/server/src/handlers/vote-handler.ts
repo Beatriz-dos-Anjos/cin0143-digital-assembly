@@ -9,18 +9,14 @@ import {
 import { logger, formatTimestamp } from "../loggers/logger";
 import { getTokensAindaAptos, getVotingStatistics } from "../domain/vote-validator";
 
-
 export function resolveClientIp(socket: Socket): string {
   const forwarded = socket.handshake.headers["x-forwarded-for"];
-  
   if (typeof forwarded === "string") {
     const ips = forwarded.split(",").map((ip) => ip.trim());
     return ips[0] ?? "desconhecido";
   }
-
   return socket.handshake.address ?? "desconhecido";
 }
-
 
 export function buildVoteContext(sessao: SessaoVotacao, socket: Socket, socketToken?: string): VoteContext {
   return {
@@ -31,8 +27,6 @@ export function buildVoteContext(sessao: SessaoVotacao, socket: Socket, socketTo
   };
 }
 
-
-
 export function logConnection(socketId: string, sessaoId: string): void {
   logger.info("WEBSOCKET", "Cliente conectado", {
     sessao_id: sessaoId,
@@ -40,18 +34,14 @@ export function logConnection(socketId: string, sessaoId: string): void {
   });
 }
 
-
 export function logDisconnection(socketId: string): void {
   logger.info("WEBSOCKET", "Cliente desconectado", {
     socket_id: socketId,
   });
 }
 
-
-
 export function logVoteAccepted(
   result: Extract<VoteResult, { success: true }>,
-  payload: string,
   context: VoteContext
 ): void {
   const token = result.voto.token;

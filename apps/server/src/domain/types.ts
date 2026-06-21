@@ -1,13 +1,8 @@
-
-
 /**
  * Opção de voto disponível
  */
 export type VoteOption = "sim" | "nao";
-
-
 export type ErrorSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-
 export type VoteErrorCode =
   | "FORMATO_INVALIDO"
   | "TOKEN_NAO_AUTORIZADO"
@@ -15,9 +10,7 @@ export type VoteErrorCode =
   | "OPCAO_INVALIDA"
   | "SESSAO_NAO_ENCONTRADA"
   | "RATE_LIMIT_EXCEDIDO";
-
 export type LogLevel = "INFO" | "SUCCESS" | "WARNING" | "ERROR" | "ALERT" | "AUDITORIA";
-
 
 /**
  * Placar atual da votação
@@ -46,8 +39,7 @@ export interface VoteContext {
   readonly sessao_id: string;
   readonly socket_id?: string;
   readonly ip?: string;
-  readonly socket_token?: string; 
-
+  readonly socket_token?: string;
 }
 
 /**
@@ -61,7 +53,6 @@ export interface DuplicateVoteContext {
   readonly tentativa_reversao: boolean;
 }
 
-
 /**
  * Sessão de votação com todos os dados
  */
@@ -74,7 +65,6 @@ export interface SessaoVotacao {
   readonly criada_em: string;
   readonly encerrada_em?: string;
 }
-
 
 /**
  * Voto parseado 
@@ -92,7 +82,6 @@ export interface VoteError {
   readonly message: string;
   readonly severity: ErrorSeverity;
 }
-
 
 /**
  * Resultado de processamento de voto 
@@ -139,7 +128,6 @@ export interface StructuredLog {
   readonly details?: LogDetails;
 }
 
-
 /**
  * Prefixo do comando de voto
  */
@@ -184,7 +172,6 @@ export const SECURITY_CONFIG = {
   MAX_SESSION_LIFETIME_MS: 604800000, // 7 dias
 } as const;
 
-
 /**
  * Cria o nome do canal de broadcast para uma sessão
  * @param sessaoId ID da sessão
@@ -202,7 +189,6 @@ export function placarChannel(sessaoId: string): string {
 export function isValidOption(value: unknown): value is VoteOption {
   return typeof value === "string" && VALID_OPTIONS.includes(value as VoteOption);
 }
-
 
 export function createVoteError(
   code: VoteErrorCode,

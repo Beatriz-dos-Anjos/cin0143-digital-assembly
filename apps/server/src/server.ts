@@ -295,7 +295,7 @@ io.on("connection", (socket) => {
       sessao_id: result.voto.sessao_id,
     });
 
-    logVoteAccepted(result, payloadStr, context);
+    logVoteAccepted(result, context);
     logVoteSummary(sessao);
   });
 
