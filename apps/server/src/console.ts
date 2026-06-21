@@ -1,6 +1,6 @@
 import * as readline from "readline";
 import { io, Socket } from "socket.io-client";
-import { SOCKET_EVENTS, VoteOption, PlacarAtual, VotoRegistrado } from "./domain/types";
+import { PlacarAtual, VotoRegistrado } from "./domain/types";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
 let socket: Socket;
@@ -26,7 +26,6 @@ Comandos disponíveis:
   LIST_VOTES                - Listar votos registrados
   PLACAR                    - Exibir placar atual
   SESSION                   - Listar dados completos da sessão ativa
-  LIST_SESSION              - Alias de SESSION
   CLEAR                     - Limpar console
   HELP                      - Exibir ajuda
   EXIT                      - Sair
@@ -131,7 +130,6 @@ function handleCommand(line: string): void {
       break;
 
     case "SESSION":
-    case "LIST_SESSION":
       pendingCommand = "SESSION";
       socket.emit("session_request");
       break;

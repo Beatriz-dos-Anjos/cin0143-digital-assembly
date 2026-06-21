@@ -1,14 +1,11 @@
 
 import { CAST_VOTE_PREFIX, ParsedCastVote, VALID_OPTIONS, VoteOption } from "./types";
 
-
 const CAST_VOTE_PATTERN = /^CAST_VOTE\|([^|]+)\|(sim|nao)$/;
-
 
 function isValidTokenLength(token: string): boolean {
   return token.length >= 32 && token.length <= 256;
 }
-
 
 export function parseCastVote(payload: unknown): ParsedCastVote | null {
   if (typeof payload !== "string") {
@@ -45,7 +42,6 @@ export function isValidOption(value: unknown): value is VoteOption {
   );
 }
 
-
 export function formatCastVote(token: string, opcao: VoteOption): string {
   if (!isValidTokenLength(token) || !isValidOption(opcao)) {
     throw new Error("Token ou opção inválidos para formatação");
@@ -53,17 +49,14 @@ export function formatCastVote(token: string, opcao: VoteOption): string {
   return `${CAST_VOTE_PREFIX}|${token}|${opcao}`;
 }
 
-
 export function isCastVoteFormat(payload: unknown): boolean {
   return parseCastVote(payload) !== null;
 }
-
 
 export function extractTokenFromPayload(payload: unknown): string | null {
   const parsed = parseCastVote(payload);
   return parsed?.token ?? null;
 }
-
 
 export function extractOptionFromPayload(payload: unknown): VoteOption | null {
   const parsed = parseCastVote(payload);
