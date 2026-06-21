@@ -8,8 +8,10 @@
   "scripts": {
     "dev": "npm run dev --workspace=apps/server",
     "dev:server": "npm run dev --workspace=apps/server",
+    "client": "tsx client.ts",
     "build": "npm run build --workspace=apps/server",
     "start": "npm run start --workspace=apps/server",
+    "console": "npm run console --workspace=apps/server",
     "test": "npm run test --workspace=apps/server",
     "vote:test": "tsx script.ts"
   },
@@ -21,5 +23,8 @@
     "socket.io-client": "^4.8.3",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "express-rate-limit": "^8.5.2"
   }
 }

@@ -12,6 +12,171 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 
 ---
 
+## Entrega 2 — Comunicação e Core
+
+Esta fase implementa o servidor multicliente com **Socket.io**, validação completa do comando `CAST_VOTE`, logs operacionais estruturados e console interativo para testes via terminal.
+
+### Checklist da Entrega 2
+
+| Requisito | Status | Implementação |
+|---|---|---|
+| Servidor multicliente (Socket.io) | ✅ | `apps/server/src/server.ts` |
+| Validação CAST_VOTE (token + duplicidade) | ✅ | `apps/server/src/domain/vote-validator.ts` |
+| Rejeição com logs detalhados | ✅ | `apps/server/src/handlers/vote-handler.ts` |
+| Console de autenticação/testes | ✅ | `apps/server/src/console.ts` |
+| Logs em console e arquivo | ✅ | `apps/server/src/loggers/logger.ts` → `apps/server/logs/` |
+| README com exemplos de teste | ✅ | Seção abaixo |
+
+### Quick Start (Entrega 2)
+
+**1. Instalar dependências**
+
+```bash
+git clone <repo>
+cd cin0143-digital-assembly
+npm install
+```
+
+**2. Iniciar o servidor (Terminal 1)**
+
+```bash
+npm run dev
+# ou
+npm start
+```
+
+Saída esperada:
+
+```
+[2026-06-18 19:06:32] [INFO] [SERVER] Servidor iniciado
+  ├─ url: http://localhost:3001
+  └─ websocket: ws://localhost:3001
+[2026-06-18 19:06:32] [INFO] [SERVER] Sistema aguardando conexões...
+  └─ sessao_padrao: assembleia-2026-06
+```
+
+**3. Abrir console de testes (Terminal 2)**
+
+```bash
+npm run console
+```
+
+Comandos disponíveis:
+
+```
+  GENERATE / GEN        - Gerar e autorizar um novo token automaticamente
+  AUTH <token>          - Validar se token é autorizado
+  VOTE <token> <opcao>  - Simular voto (sim ou nao)
+  STATUS <token>        - Verificar status do token
+  LIST_TOKENS           - Listar todos os tokens válidos
+  LIST_VOTES            - Listar votos registrados
+  PLACAR                - Exibir placar atual
+  CLEAR / HELP / EXIT
+```
+
+**Tokens de teste:**
+
+Os tokens de teste não são pré-carregados ao iniciar o servidor. Eles são criados sob demanda, conforme solicitado pelo usuário:
+1. No console do servidor (`npm run console`), você pode gerar e autorizar um novo token a qualquer momento digitando o comando `GENERATE` ou `GEN`.
+2. Ao conectar um cliente via WebSocket (rodando `npm run client` ou `npm run vote:test`), o token do cliente é gerado e registrado automaticamente no servidor.
+
+---
+
+### Exemplos de Testes via Terminal
+
+#### Teste 1: Voto válido (primeira votação)
+
+Para testar no console (`npm run console`), primeiro gere um novo token autorizado com `GENERATE`. Copie o token gerado (por exemplo, `TK_AUTO_8E3F2B1D`) e execute:
+
+```bash
+votacao> AUTH TK_AUTO_8E3F2B1D
+✓ Token válido e autorizado
+✓ Token nunca votou antes
+Status: PRONTO PARA VOTAR
+
+votacao> VOTE TK_AUTO_8E3F2B1D sim
+✓ Voto registrado com sucesso!
+  ├─ Token: TK_AUTO_8E3F2B1D
+  ├─ Voto: sim
+  └─ Status: VOTAÇÃO CONCLUÍDA
+```
+
+#### Teste 2: Voto duplicado rejeitado
+
+```bash
+votacao> VOTE TK_AUTO_8E3F2B1D nao
+✗ VOTO REJEITADO - Duplicidade detectada
+  ├─ Token: TK_AUTO_8E3F2B1D
+  ├─ Motivo: Token já exerceu direito de voto
+  ├─ Voto anterior: sim
+  └─ Ação: Voto recusado, log registrado
+```
+
+Logs gerados no servidor:
+
+```
+[ERROR] [VOTE_VALIDATION] Voto REJEITADO - Duplicidade detectada
+  ├─ token: TK_AUTO_8E3F2B1D
+  ├─ voto_tentado: nao
+  ├─ voto_anterior: sim
+  └─ acao_tomada: Voto rejeitado, sessão mantida aberta
+```
+
+#### Teste 3: Token inválido
+
+```bash
+votacao> AUTH token_invalido_xyz
+✗ Token não autorizado
+  ├─ Status: NÃO ENCONTRADO NA LISTA
+  └─ Ação: Acesso negado
+```
+
+#### Teste 4: Voto via WebSocket (cliente remoto)
+
+Com o servidor rodando, em outro terminal:
+
+```bash
+# Voto válido com geração automática de token (o script gera um token único, registra/autoriza no servidor e vota)
+npm run vote:test
+
+# Voto com token customizado (e opção customizada)
+VOTE_TOKEN=TK_AUTO_8E3F2B1D VOTE_OPCAO=nao npm run vote:test
+```
+
+#### Teste 5: Múltiplos clientes simultâneos
+
+Abra 3 terminais e execute em paralelo (usando tokens válidos gerados pelo servidor ou pela ferramenta de registro de cliente):
+
+```bash
+VOTE_TOKEN=TK_AUTO_8E3F2B1D VOTE_OPCAO=sim npm run vote:test
+VOTE_TOKEN=TK_AUTO_9F2B81C4 VOTE_OPCAO=nao npm run vote:test
+VOTE_TOKEN=TK_AUTO_3E1B9C4D VOTE_OPCAO=sim npm run vote:test
+```
+
+---
+
+### Interpretando os Logs
+
+Os logs são gravados em **stdout** e em arquivos em `apps/server/logs/`:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `app.log` | Todas as operações |
+| `erros.log` | Erros e alertas de segurança |
+| `auditoria.log` | Tentativas de fraude e duplicidade |
+
+Formato:
+
+```
+[TIMESTAMP] [NIVEL] [MODULO] Mensagem
+  ├─ campo: valor
+  └─ campo: valor
+```
+
+Níveis: `INFO`, `SUCCESS`, `WARNING`, `ERROR`, `ALERT`, `AUDITORIA`
+
+---
+
 ##  Stack & Justificativa Arquitetural
 
 ### Visão Full Stack
@@ -136,7 +301,7 @@ A comunicação entre o Cliente e o Servidor  (Express/Socket.io) é orientada a
 | **Tipo de Dado** | String de texto simples (Textual Pleno) |
 | **Delimitador** | `\|` (Pipeline) |
 | **Formato Estrito** | `CAST_VOTE\|<token>\|<opcao>` |
-| **Exemplo de Payload** | `CAST_VOTE\|TK_CONDOMINO_450\|opcao_B` |
+| **Exemplo de Payload** | `CAST_VOTE\|TK_AUTO_8E3F2B1D\|nao` |
  
 ---
  
@@ -152,8 +317,8 @@ A comunicação entre o Cliente e o Servidor  (Express/Socket.io) é orientada a
  
 ```json
 {
-  "opcao_A": 4,
-  "opcao_B": 2
+  "sim": 4,
+  "nao": 2
 }
 ```
 ``
@@ -168,7 +333,7 @@ sequenceDiagram
 
     Note over C: Validação UX<br/>Token preenchido?<br/>Opção selecionada?
 
-    C->>S: cast_vote<br/>CAST_VOTE|TK_001|opcao_A
+    C->>S: cast_vote<br/>CAST_VOTE|TK_001|sim
 
     S->>S: Parse do payload
     S->>S: Verificar token autorizado
@@ -179,7 +344,7 @@ sequenceDiagram
         S->>S: Incrementa placar
         S->>S: Registra token em tokens_que_ja_votaram
         S-->>C: placar_atualizado
-        Note over S,C: {opcao_A: 5, opcao_B: 3}
+        Note over S,C: {sim: 5, nao: 3}
         C->>C: Atualiza interface
         C-->>U: Exibe placar atualizado
     else Token inválido
@@ -200,11 +365,21 @@ O servidor mantém as sessões ativas em memória volátil com o seguinte esquem
 {
   "sessao_id": "string",
   "placar_atual": {
-    "opcao_A": "number",
-    "opcao_B": "number"
+    "sim": "number",
+    "nao": "number"
   },
   "tokens_autorizados": ["string"],
-  "tokens_que_ja_votaram": ["string"]
+  "tokens_que_ja_votaram": ["string"],
+  "votos_realizados": [
+    {
+      "token": "string",
+      "voto": "sim | nao",
+      "timestamp": "string",
+      "sessao_id": "string",
+      "ip": "string",
+      "socket_id": "string"
+    }
+  ]
 }
 ```
 ## Como Inicializar uma Sessão
@@ -216,8 +391,8 @@ Content-Type: application/json
 {
   "session_id": "ASSEMBLY_CONDOMINIO_JUN_2026",
   "opcoes": [
-    "opcao_A",
-    "opcao_B"
+    "sim",
+    "nao"
   ],
   "tokens_autorizados": [
     "TK_001",
@@ -358,7 +533,7 @@ k6 run tests/load/voting-stress.js
 ### Pré-requisitos
 
 - Node.js 18+
-- npm ou yarn
+- npm
 
 ### Instalação
 
@@ -368,30 +543,58 @@ Clone o repositório e instale as dependências de todo o monorepo:
 npm install
 ```
 
-### Desenvolvimento
+### Comandos principais
 
-**Rodar frontend e backend simultaneamente:**
-
-```bash
-npm run dev
-```
-
-**Rodar apenas o backend (Express + Socket.io):**
-
-```bash
-npm run dev 
-```
-
-**Rodar apenas o frontend (Next.js):**
-
-```bash
-npm run dev 
-```
+| Comando | Descrição |
+|---|---|
+| `npm run dev` | Inicia servidor Express + Socket.io (porta 3001) |
+| `npm run client` | Cliente manual independente, gera token e permite votar via terminal |
+| `npm run console` | Console interativo local de autenticação e votação, incluindo `SESSION` |
+| `npm run vote:test` | Cliente WebSocket de teste (envia um CAST_VOTE) |
+| `npm test` | Testes unitários Jest |
+| `npm start` | Servidor compilado (requer `npm run build` antes) |
 
 | Serviço | URL padrão |
 |---|---|
-| Frontend (Next.js) | `http://localhost:3000` |
 | Backend (Express + Socket.io) | `http://localhost:3001` |
+| Frontend (Next.js) | `http://localhost:3000` |
+
+### Cliente manual independente
+
+Para conectar um cliente novo em outro terminal, gerar um token próprio e votar manualmente, rode:
+
+```bash
+npm run client
+```
+
+O cliente abre uma sessão Socket.io com o servidor, solicita autorização do token e passa a aceitar comandos no próprio terminal:
+
+```text
+token        # mostra o token gerado para aquele cliente
+vote A       # envia voto para sim
+vote B       # envia voto para nao
+session      # solicita ao servidor o snapshot da sessão
+status       # mostra a sessão e o token atuais
+exit         # encerra o cliente
+```
+
+Se quiser listar todos os dados da sessão no servidor, use o console do backend:
+
+```bash
+npm run console
+```
+
+Depois execute:
+
+```text
+SESSION
+```
+
+Esse comando mostra a sessão ativa, o placar, os tokens autorizados a votar, os tokens que já votaram e os canais/eventos usados pelo Socket.io.
+
+Cada conexão, autorização de token e voto aceito/rejeitado fica registrada nos logs do servidor.
+
+Para testar duplicidade, use o mesmo cliente e execute `vote A` duas vezes. A segunda tentativa deve ser rejeitada como voto duplicado.
 
 
 ##  Autenticação em Memória & Prevenção de Fraude 
@@ -423,7 +626,7 @@ Esta seção detalha a implementação prática do pipeline de validação defin
 Quando uma string de payload  chega pela interface de rede WebSocket, há as seguintes validações:
  
 ```text
-Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
+Payload de Entrada: "CAST_VOTE|TK_USER1|sim"
               │
               ▼
    ┌────────────────────────────────┐
@@ -442,7 +645,7 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|opcao_A"
               │ False
               ▼
    ┌────────────────────────────────┐
-   │  Registro (escrita)            │ ──► 1. Incrementa placar_atual['opcao_A'] em +1
+   │  Registro (escrita)            │ ──► 1. Incrementa placar_atual['sim'] em +1
    └────────────────────────────────┘     2. Insere 'TK_USER1' em tokens_que_ja_votaram
               │
               ▼
@@ -467,16 +670,19 @@ k6 run tests/load/voting-stress.js
 ```
 ├── apps/
 │   ├── web/                        # Frontend — Next.js + React
-│   │   ├── app/                    # App Router (pages e layouts)
-│   │   ├── components/             # Componentes de UI (painel de votação, placar)
-│   │   └── lib/                    # Cliente Socket.io e hooks de tempo real
+│   │   └── src/app/                # App Router (pages e layouts)
 │   │
 │   └── server/                     # Backend — Node.js + Express + Socket.io
+│       ├── logs/                   # Logs operacionais (app, erros, auditoria)
 │       └── src/
+│           ├── console.ts          # Console interativo de testes (Entrega 2)
 │           ├── domain/             # Parsers, validadores e regras de negócio
+│           ├── handlers/           # Tratamento de votos e logging
+│           ├── loggers/            # Sistema de logs estruturados
 │           ├── repository/         # Estado efêmero em memória (sessões ativas)
 │           └── server.ts           # Entry point — Express + Socket.io
 │
+├── script.ts                       # Cliente WebSocket de teste rápido
 ├── tests/
 │   └── load/
 │       └── voting-stress.js        # Script de carga K6
