@@ -11,9 +11,9 @@ Este repositório contém a arquitetura, a documentação e o esqueleto base de 
 - Garantir integridade e unicidade dos votos por token
 
 ---
+___Seção Entrega 2
 
-
-**1.  Entrega 2 Específica : Instalar dependências**
+**1. Instalar dependências**
 
 ```bash
 git clone <repo>
