@@ -18,10 +18,6 @@ const BANNER = `
 
 const HELP = `
 Comandos disponíveis:
-  GENERATE / GEN            - Gerar e autorizar um novo token automaticamente
-  AUTH <token>              - Validar se token é autorizado
-  VOTE <token> <opcao>      - Simular voto (sim ou nao)
-  STATUS <token>            - Verificar status do token
   LIST_TOKENS               - Listar todos os tokens válidos
   LIST_VOTES                - Listar votos registrados
   PLACAR                    - Exibir placar atual
@@ -66,52 +62,7 @@ function handleCommand(line: string): void {
   const command = args[0]?.toUpperCase();
 
   switch (command) {
-    case "GENERATE":
-    case "GENERATE_TOKEN":
-    case "GEN":
-      console.log("Solicitando geração de token ao servidor...");
-      socket.emit("generate_token_request");
-      break;
-
-    case "AUTH":
-      if (!args[1]) {
-        console.log("Uso: AUTH <token>");
-        promptUser();
-        break;
-      }
-      pendingCommand = "AUTH";
-      socket.emit("token_status_request", args[1]);
-      break;
-
-    case "VOTE":
-      if (!args[1] || !args[2]) {
-        console.log("Uso: VOTE <token> <sim|nao>");
-        promptUser();
-        break;
-      }
-      const token = args[1];
-      const opcao = args[2].toLowerCase();
-      if (opcao !== "sim" && opcao !== "nao") {
-        console.log("✗ Opção inválida. Use sim ou nao.");
-        promptUser();
-        break;
-      }
-      pendingCommand = "VOTE";
-      const payload = `CAST_VOTE|${token}|${opcao}`;
-      console.log(`Enviando voto ao servidor...`);
-      socket.emit("cast_vote", payload);
-      break;
-
-    case "STATUS":
-      if (!args[1]) {
-        console.log("Uso: STATUS <token>");
-        promptUser();
-        break;
-      }
-      pendingCommand = "STATUS";
-      socket.emit("token_status_request", args[1]);
-      break;
-
+   
     case "LIST_TOKENS":
       pendingCommand = "LIST_TOKENS";
       socket.emit("session_request");

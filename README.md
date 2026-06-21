@@ -46,10 +46,7 @@ npm run console
 Comandos disponíveis:
 
 ```
-  GENERATE / GEN        - Gerar e autorizar um novo token automaticamente
-  AUTH <token>          - Validar se token é autorizado
-  VOTE <token> <opcao>  - Simular voto (sim ou nao)
-  STATUS <token>        - Verificar status do token
+ 
   LIST_TOKENS           - Listar todos os tokens válidos
   LIST_VOTES            - Listar votos registrados
   PLACAR                - Exibir placar atual
@@ -64,7 +61,7 @@ Os tokens de teste não são pré-carregados ao iniciar o servidor. Eles são cr
 
 ---
 
-### Exemplos de Testes via Terminal
+### Exemplos de Clientes via Terminal (3,4..5)
 
 #### Teste 1: Voto válido (primeira votação)
 
