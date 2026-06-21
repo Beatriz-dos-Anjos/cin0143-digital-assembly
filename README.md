@@ -56,8 +56,7 @@ Comandos disponíveis:
 **Tokens de teste:**
 
 Os tokens de teste não são pré-carregados ao iniciar o servidor. Eles são criados sob demanda, conforme solicitado pelo usuário:
-1. No console do servidor (`npm run console`), você pode gerar e autorizar um novo token a qualquer momento digitando o comando `GENERATE` ou `GEN`.
-2. Ao conectar um cliente via WebSocket (rodando `npm run client` ou `npm run vote:test`), o token do cliente é gerado e registrado automaticamente no servidor.
+1. Você inicia o servidor : npm run dev. Inicia o  console (painel gerencial : npm run console) e faz quantos clientes quiser com npm run client em diferentes terminais.
 
 ---
 
@@ -66,43 +65,90 @@ Abrir outros terminais simulando o cliente
 
 #### Teste 1: Voto válido (primeira votação)
 
-Para testar no cliente, pegue o token gerado e vote 'vote TOKEN Sim"
+Para testar no cliente, pegue o token gerado e vote 'vote TOKEN Sim".
+Saída esperada no cliente:
+```bash
+Voto enviado: token=TK_CLIENT_4BCEFBB5D8354EAE8A60EE318400EFC6 | opcao=sim
+cliente> Placar atualizado: { sim: 2, nao: 0 }
+```
+Logs gerados no servidor:
+```bash
+
+[2026-06-21 20:37:03] [SUCCESS] [VOTE_REGISTRATION] Voto registrado no placar
+  ├─ token: TK_CLIEN***
+  ├─ voto: sim
+  ├─ total_sim: 2
+  └─ total_nao: 0
+[2026-06-21 20:37:03] [INFO] [VOTE_SUMMARY] Status da votação atualizado
+  ├─ sessao_id: assembleia-2026-06
+  ├─ votos_processados: 2
+  ├─ sim: 2 votos (100.0%)
+  ├─ nao: 0 votos (0.0%)
+  ├─ tokens_aptos: 1
+  ├─ tokens_votaram: 2
+  └─ tokens_totais: 3
+```
 
 #### Teste 2: Voto duplicado rejeitado
 Vote com um token 1 vez Na segunda , 
 ```bash
-votacao> VOTE TK_AUTO_8E3F2B1D Nao
-✗ VOTO REJEITADO - Duplicidade detectada
-  ├─ Token: TK_AUTO_8E3F2B1D
-  ├─ Motivo: Token já exerceu direito de voto
-  ├─ Voto anterior: sim
-  └─ Ação: Voto recusado, log registrado
+cliente> Erro de votação: {
+  code: 'VOTO_DUPLICADO',
+  message: 'Token já exerceu direito de voto.',
+  severity: 'HIGH'
+}
 ```
 
 Logs gerados no servidor:
 
 ```
-[ERROR] [VOTE_VALIDATION] Voto REJEITADO - Duplicidade detectada
-  ├─ token: TK_AUTO_8E3F2B1D
-  ├─ voto_tentado: nao
+[2026-06-21 20:35:35] [ERROR] [VOTE_VALIDATION] Tentativa de voto duplicado rejeitada
+  ├─ tipo_erro: VOTO_DUPLICADO
+  ├─ token: TK_CLIEN***
   ├─ voto_anterior: sim
-  └─ acao_tomada: Voto rejeitado, sessão mantida aberta
+  ├─ voto_tentado: sim
+  ├─ tentativa_reversao: NAO
+  ├─ sessao_id: assembleia-2026-06
+  ├─ ip_cliente: ::ffff:127.0.0.1
+  ├─ timestamp_tentativa: 2026-06-21 20:35:35
+  └─ timestamp_voto_anterior: 2026-06-21 20:35:33
+[2026-06-21 20:35:35] [AUDITORIA] [AUDITORIA] Tentativa de voto duplicado detectada
+  ├─ token_suspeito: TK_CLIEN***
+  ├─ voto_anterior: sim
+  ├─ voto_tentado: sim
+  ├─ ip_origem: ::ffff:127.0.0.1
+  └─ status: Monitorado
 ```
 
 #### Teste 3: Token inválido
 
 ```bash
-votacao> AUTH token_invalido_xyz
-✗ Token não autorizado
-  ├─ Status: NÃO ENCONTRADO NA LISTA
-  └─ Ação: Acesso negado
+cliente> vote TK_CLIENT_0E0A6AC079DA459FA1988975EEF1CC Sim
+Voto enviado: token=TK_CLIENT_0E0A6AC079DA459FA1988975EEF1CC | opcao=sim
+cliente> Erro de votação: {
+  code: 'TOKEN_NAO_AUTORIZADO',
+  message: 'Você só pode votar usando o token gerado para esta conexão.',
+  severity: 'HIGH'
+}
+
+Nos logs:
+[2026-06-21 20:33:04] [ERROR] [VOTE_VALIDATION] Tentativa de votação com token não autorizado
+  ├─ token: TK_CLIEN***
+  ├─ sessao_id: assembleia-2026-06
+  ├─ ip_cliente: ::ffff:127.0.0.1
+  └─ acao_tomada: Voto rejeitado
+[2026-06-21 20:33:04] [ALERT] [SEGURANCA] Possível tentativa de fraude detectada
+  ├─ tipo: TOKEN_NAO_AUTORIZADO
+  ├─ token_suspeito: TK_CLIEN***
+  ├─ ip_origem: ::ffff:127.0.0.1
+  └─ status: Flagged para investigação
 ```
 
 ---
 
 ### Interpretando os Logs
 
-Os logs são gravados em **stdout** e em arquivos em `apps/server/logs/`:
+Os logs são gravados em **stdout** (exibidos nos respectivos terminais) e em arquivos em `apps/server/logs/`:
 
 | Arquivo | Conteúdo |
 |---|---|
