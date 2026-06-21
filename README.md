@@ -548,7 +548,7 @@ npm install
 | Comando | Descrição |
 |---|---|
 | `npm run dev` | Inicia servidor Express + Socket.io (porta 3001) |
-| `npm run client` | Cliente manual independente, gera token e permite votar via terminal |
+| `npm run client` | Cliente manual independente, gera token automático e permite votar via terminal |
 | `npm run console` | Console interativo local de autenticação e votação, incluindo `SESSION` |
 | `npm run vote:test` | Cliente WebSocket de teste (envia um CAST_VOTE) |
 | `npm test` | Testes unitários Jest |
@@ -567,30 +567,13 @@ Para conectar um cliente novo em outro terminal, gerar um token próprio e votar
 npm run client
 ```
 
-O cliente abre uma sessão Socket.io com o servidor, solicita autorização do token e passa a aceitar comandos no próprio terminal:
+O cliente abre uma sessão Socket.io com o servidor, recebe um token gerado automaticamente no mesmo padrão do console e passa a aceitar apenas comandos de votação no próprio terminal:
 
 ```text
-token        # mostra o token gerado para aquele cliente
-vote A       # envia voto para sim
-vote B       # envia voto para nao
-session      # solicita ao servidor o snapshot da sessão
-status       # mostra a sessão e o token atuais
+vote sim     # envia voto para sim
+vote nao     # envia voto para nao
 exit         # encerra o cliente
 ```
-
-Se quiser listar todos os dados da sessão no servidor, use o console do backend:
-
-```bash
-npm run console
-```
-
-Depois execute:
-
-```text
-SESSION
-```
-
-Esse comando mostra a sessão ativa, o placar, os tokens autorizados a votar, os tokens que já votaram e os canais/eventos usados pelo Socket.io.
 
 Cada conexão, autorização de token e voto aceito/rejeitado fica registrada nos logs do servidor.
 

@@ -290,6 +290,11 @@ io.on("connection", (socket) => {
     const channel = placarChannel(sessao.sessao_id);
     io.to(sessao.sessao_id).emit(channel, result.placar);
 
+    socket.emit(SOCKET_EVENTS.VOTE_ACCEPTED, {
+      token: result.voto.token,
+      sessao_id: result.voto.sessao_id,
+    });
+
     logVoteAccepted(result, payloadStr, context);
     logVoteSummary(sessao);
   });

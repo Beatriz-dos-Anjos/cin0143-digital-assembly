@@ -160,6 +160,7 @@ export const SOCKET_EVENTS = {
   SESSION_REQUEST: "session_request",
   SESSION_DATA: "session_data",
   PLACAR_ATUALIZADO: "placar_atualizado",
+  VOTE_ACCEPTED: "vote_accepted",
   VOTE_ERROR: "vote_error",
   CONNECTION_ACK: "connection_ack",
 } as const;
