@@ -1,5 +1,11 @@
-import { Socket } from "socket.io";
+/**
+ * Vote Handler - Handlers de socket e logging de votos
+ * ✅ Logging centralizado
+ * ✅ Contexto preservado
+ * ✅ Auditoria completa
+ */
 
+import { Socket } from "socket.io";
 import {
   DuplicateVoteContext,
   SessaoVotacao,
@@ -7,144 +13,297 @@ import {
   VoteResult,
 } from "../domain/types";
 import { logger, formatTimestamp } from "../loggers/logger";
+import { getTokensAindaAptos, getVotingStatistics } from "../domain/vote-validator";
 
-function getTokensAindaAptos(sessao: SessaoVotacao): string[] {
-  return sessao.tokens_autorizados.filter(
-    (token) => !sessao.tokens_que_ja_votaram.includes(token)
-  );
-}
+// ============================================================================
+// UTILITÁRIOS DE CONTEXTO
+// ============================================================================
 
-function resolveClientIp(socket: Socket): string {
+/**
+ * Extrai o IP do cliente de um socket
+ * Considera proxy reverso com x-forwarded-for
+ * @param socket Socket do cliente
+ * @returns IP do cliente ou "desconhecido"
+ */
+export function resolveClientIp(socket: Socket): string {
   const forwarded = socket.handshake.headers["x-forwarded-for"];
+  
   if (typeof forwarded === "string") {
-    return forwarded.split(",")[0]?.trim() ?? "desconhecido";
+    const ips = forwarded.split(",").map((ip) => ip.trim());
+    return ips[0] ?? "desconhecido";
   }
 
   return socket.handshake.address ?? "desconhecido";
 }
 
-export function buildVoteContext(
-  sessao: SessaoVotacao,
-  socket: Socket
-): VoteContext {
+/**
+ * Constrói contexto de voto a partir de uma sessão e socket
+ * @param sessao Sessão ativa
+ * @param socket Socket do cliente
+ * @param socketToken Token registrado para este socket 
+ * @returns Contexto de voto
+
+ */
+export function buildVoteContext(sessao: SessaoVotacao, socket: Socket, socketToken?: string): VoteContext {
   return {
     sessao_id: sessao.sessao_id,
     socket_id: socket.id,
     ip: resolveClientIp(socket),
+    socket_token: socketToken,
   };
 }
 
+// ============================================================================
+// LOGGING DE CONEXÃO
+// ============================================================================
+
+/**
+ * Registra conexão de um cliente
+ * @param socketId ID do socket
+ * @param sessaoId ID da sessão
+ */
 export function logConnection(socketId: string, sessaoId: string): void {
   logger.info("WEBSOCKET", "Cliente conectado", {
     sessao_id: sessaoId,
-    sessao_id_ws: `sess_${socketId}`,
     socket_id: socketId,
   });
 }
 
+/**
+ * Registra desconexão de um cliente
+ * @param socketId ID do socket
+ */
 export function logDisconnection(socketId: string): void {
   logger.info("WEBSOCKET", "Cliente desconectado", {
     socket_id: socketId,
   });
 }
 
+// ============================================================================
+// LOGGING DE VOTO ACEITO
+// ============================================================================
+
+/**
+ * Registra voto aceito com sucesso
+ * @param result Resultado do processamento
+ * @param payload Payload original
+ * @param context Contexto da requisição
+ */
 export function logVoteAccepted(
   result: Extract<VoteResult, { success: true }>,
-  payload: string
+  payload: string,
+  context: VoteContext
 ): void {
-  logger.info("VOTE_VALIDATION", "Token validado com sucesso", {
-    token: result.voto.token,
-    status: "Autorizado",
-    primeira_votacao: "SIM",
+  const token = result.voto.token;
+  const voto = result.voto.voto;
+
+  logger.success("VOTE_VALIDATION", "Voto validado e registrado com sucesso", {
+    token: token.substring(0, 8) + "***",
+    voto,
+    sessao_id: context.sessao_id,
+    ip_cliente: context.ip,
+    timestamp: result.voto.timestamp,
   });
 
-  logger.success("VOTE_REGISTRATION", "Voto registrado com sucesso", {
-    token: result.voto.token,
-    voto: result.voto.voto,
-    sessao: result.voto.socket_id ? `sess_${result.voto.socket_id}` : undefined,
-    ip: result.voto.ip,
-    timestamp: result.voto.timestamp,
+  logger.success("VOTE_REGISTRATION", "Voto registrado no placar", {
+    token: token.substring(0, 8) + "***",
+    voto,
     total_sim: result.placar.sim,
     total_nao: result.placar.nao,
-    payload,
   });
 }
 
+// ============================================================================
+// LOGGING DE ERRO - TOKEN NÃO AUTORIZADO
+// ============================================================================
+
+/**
+ * Registra tentativa de voto com token não autorizado
+ * @param token Token inválido
+ * @param context Contexto da requisição
+ * @param payload Payload original
+ */
 export function logUnauthorizedVote(
   token: string,
   context: VoteContext,
   payload: string
 ): void {
-  logger.error("VOTE_VALIDATION", "Tentativa de votação com token inválido", {
-    token,
-    status: "NAO AUTORIZADO",
+  logger.error("VOTE_VALIDATION", "Tentativa de votação com token não autorizado", {
+    token: token.substring(0, 8) + "***",
     sessao_id: context.sessao_id,
-    connection_id: context.socket_id,
     ip_cliente: context.ip,
-    payload,
     acao_tomada: "Voto rejeitado",
   });
 
-  logger.alert("SEGURANCA", "Possível tentativa de fraude", {
-    token_fraudulento: token,
+  logger.alert("SEGURANCA", "Possível tentativa de fraude detectada", {
+    tipo: "TOKEN_NAO_AUTORIZADO",
+    token_suspeito: token.substring(0, 8) + "***",
     ip_origem: context.ip,
     status: "Flagged para investigação",
   });
 }
 
+// ============================================================================
+// LOGGING DE ERRO - VOTO DUPLICADO
+// ============================================================================
+
+/**
+ * Registra tentativa de voto duplicado
+ * @param duplicate Contexto de voto duplicado
+ * @param context Contexto da requisição
+ * @param payload Payload original
+ */
 export function logDuplicateVote(
   duplicate: DuplicateVoteContext,
   context: VoteContext,
   payload: string
 ): void {
-  logger.error("VOTE_VALIDATION", "Voto REJEITADO - Duplicidade detectada", {
+  const token = duplicate.token;
+
+  logger.error("VOTE_VALIDATION", "Tentativa de voto duplicado rejeitada", {
     tipo_erro: "VOTO_DUPLICADO",
-    token: duplicate.token,
-    voto_tentado: duplicate.voto_tentado,
+    token: token.substring(0, 8) + "***",
     voto_anterior: duplicate.voto_anterior,
+    voto_tentado: duplicate.voto_tentado,
+    tentativa_reversao: duplicate.tentativa_reversao ? "SIM" : "NAO",
     sessao_id: context.sessao_id,
-    connection_id: context.socket_id,
     ip_cliente: context.ip,
     timestamp_tentativa: formatTimestamp(),
     timestamp_voto_anterior: duplicate.timestamp_voto_anterior,
-    tentativa_reversao: duplicate.tentativa_reversao ? "SIM" : "NAO",
-    motivo_rejeicao: "Duplicidade de token",
-    acao_tomada: "Voto rejeitado, sessão mantida aberta",
-    mensagem: "Token já exerceu direito de voto",
-    payload,
   });
 
   logger.auditoria("AUDITORIA", "Tentativa de voto duplicado detectada", {
-    token_suspeito: duplicate.token,
+    token_suspeito: token.substring(0, 8) + "***",
     voto_anterior: duplicate.voto_anterior,
     voto_tentado: duplicate.voto_tentado,
+    ip_origem: context.ip,
     status: "Monitorado",
   });
 }
 
+// ============================================================================
+// LOGGING DE ERRO - FORMATO INVÁLIDO
+// ============================================================================
+
+/**
+ * Registra payload com formato inválido
+ * @param payload Payload malformado
+ * @param context Contexto da requisição
+ */
 export function logInvalidFormat(payload: string, context: VoteContext): void {
   logger.warning("VOTE_VALIDATION", "Payload malformado rejeitado", {
-    payload,
     socket_id: context.socket_id,
     ip_cliente: context.ip,
+    payload_length: payload.length,
     acao_tomada: "Voto rejeitado",
   });
 }
 
+// ============================================================================
+// LOGGING DE RESUMO DE VOTAÇÃO
+// ============================================================================
+
+/**
+ * Registra resumo completo da votação
+ * @param sessao Sessão ativa
+ */
 export function logVoteSummary(sessao: SessaoVotacao): void {
-  const total = sessao.votos_realizados.length;
-  const totalA = sessao.placar_atual.sim;
-  const totalB = sessao.placar_atual.nao;
-  const percentA = total > 0 ? ((totalA / total) * 100).toFixed(1) : "0.0";
-  const percentB = total > 0 ? ((totalB / total) * 100).toFixed(1) : "0.0";
-  const tokensAutorizadosAVotar = getTokensAindaAptos(sessao);
+  const stats = getVotingStatistics(sessao);
+  const tokensAptos = getTokensAindaAptos(sessao);
 
   logger.info("VOTE_SUMMARY", "Status da votação atualizado", {
     sessao_id: sessao.sessao_id,
-    votos_processados: total,
-    sim: `${totalA} votos (${percentA}%)`,
-    nao: `${totalB} votos (${percentB}%)`,
-    tokens_autorizados_a_votar: tokensAutorizadosAVotar,
-    tokens_que_ja_votaram: sessao.tokens_que_ja_votaram,
+    votos_processados: stats.total_votos,
+    sim: `${stats.votos_sim} votos (${stats.percentual_sim})`,
+    nao: `${stats.votos_nao} votos (${stats.percentual_nao})`,
+    tokens_aptos: tokensAptos.length,
+    tokens_votaram: stats.tokens_votaram,
+    tokens_totais: stats.tokens_totais,
+  });
+}
+
+// ============================================================================
+// LOGGING DE EVENTOS DE SESSÃO
+// ============================================================================
+
+/**
+ * Registra criação de nova sessão
+ * @param sessaoId ID da nova sessão
+ * @param totalTokens Total de tokens autorizados
+ */
+export function logSessionCreated(sessaoId: string, totalTokens: number): void {
+  logger.success("SESSION", "Sessão de votação criada com sucesso", {
+    sessao_id: sessaoId,
+    tokens_autorizados: totalTokens,
+    criada_em: formatTimestamp(),
+  });
+}
+
+/**
+ * Registra cliente autenticado em uma sessão
+ * @param token Token do cliente
+ * @param sessaoId ID da sessão
+ * @param socketId ID do socket
+ * @param totalTokens Total de tokens na sessão
+ */
+export function logClientAuthenticated(
+  token: string,
+  sessaoId: string,
+  socketId: string,
+  totalTokens: number
+): void {
+  logger.success("WEBSOCKET", "Cliente autenticado para votação", {
+    token: token.substring(0, 8) + "***",
+    sessao_id: sessaoId,
+    socket_id: socketId,
+    total_tokens: totalTokens,
+  });
+}
+
+/**
+ * Registra token gerado via console
+ * @param token Token gerado
+ * @param sessaoId ID da sessão
+ */
+export function logTokenGenerated(token: string, sessaoId: string): void {
+  logger.success("TOKEN_GENERATION", "Token gerado via console de votação", {
+    token: token.substring(0, 8) + "***",
+    sessao_id: sessaoId,
+    gerado_em: formatTimestamp(),
+  });
+}
+
+// ============================================================================
+// LOGGING DE ERROS DO SISTEMA
+// ============================================================================
+
+/**
+ * Registra erro crítico de sistema
+ * @param error Erro capturado
+ * @param context Contexto onde ocorreu
+ */
+export function logSystemError(error: Error, context: string): void {
+  logger.error("SYSTEM", `Erro crítico em ${context}`, {
+    error_message: error.message,
+    error_stack: error.stack?.split("\n")[0] ?? "N/A",
+    context,
+  });
+}
+
+/**
+ * Registra erro de validação de schema
+ * @param fieldName Nome do campo com erro
+ * @param expectedType Tipo esperado
+ * @param receivedValue Valor recebido
+ */
+export function logValidationError(
+  fieldName: string,
+  expectedType: string,
+  receivedValue: unknown
+): void {
+  logger.warning("VALIDATION", "Erro ao validar entrada do usuário", {
+    field: fieldName,
+    expected_type: expectedType,
+    received_type: typeof receivedValue,
   });
 }

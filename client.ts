@@ -28,9 +28,7 @@ type SessionData = {
 };
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
-const GENERATED_TOKEN = `TK_CLIENT_${randomUUID().slice(0, 8).toUpperCase()}`;
-
-const socket = io(SERVER_URL, {
+const GENERATED_TOKEN = `TK_CLIENT_${randomUUID().replace(/-/g, "").toUpperCase()}`;const socket = io(SERVER_URL, {
   autoConnect: true,
   reconnection: true,
 });
@@ -43,7 +41,6 @@ let scoreListenerAttached = false;
 function printHelp(): void {
   console.log("Comandos:");
   console.log("  token               - mostra o token gerado para este cliente");
-  console.log("  use-token <valor>   - sobrescreve o token atual (para testar válido/inválido)");
   console.log("  vote <token> A      - envia voto para sim usando o token informado");
 console.log("  vote <token> B      - envia voto para não usando o token informado");
   console.log("  session             - solicita ao servidor o snapshot da sessão");
@@ -105,16 +102,6 @@ const rawArg = firstSpaceIndex === -1 ? undefined : trimmed.slice(firstSpaceInde
     } else if (normalized === "session") {
       socket.emit("session_request");
       console.log("Solicitando snapshot da sessão ao servidor...");
-    } else if (normalized === "use-token") {
-      const newToken = rawArg?.trim();
-
-      if (!newToken) {
-        console.log("Uso: use-token <valor>");
-        ensurePrompt();
-        return;
-      }
-      currentToken = newToken;
-      console.log(`Token não criado: ${currentToken}`);
    } else if (normalized === "vote") {
   const parts = rawArg?.trim().split(/\s+/) ?? [];
 

@@ -1,11 +1,13 @@
+
 import cors from "cors";
-import express from "express";
-import { randomUUID } from "crypto";
+import express, { Request, Response } from "express";
+import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { z } from "zod";
 
-import { placarChannel, SOCKET_EVENTS } from "./domain/types";
-import { processVote, getTokenStatus } from "./domain/vote-validator";
+import { placarChannel, SOCKET_EVENTS } from "../src/domain/types";
+import { processVote, getTokenStatus, getTokensAindaAptos } from "../src/domain/vote-validator";
 import {
   buildVoteContext,
   logConnection,
@@ -15,146 +17,279 @@ import {
   logUnauthorizedVote,
   logVoteAccepted,
   logVoteSummary,
-} from "./handlers/vote-handler";
-import { logger } from "./loggers/logger";
-import { sessionStore } from "./repository/session-store";
+  logClientAuthenticated,
+  logTokenGenerated,
+  logSessionCreated,
+} from "../src/handlers/vote-handler";
+import { logger } from "../../server/src/loggers/logger";
+import { sessionStore } from "../src/repository/session-store";
+import { tokenService, startTokenCleanupScheduler } from "../src/token/token-service";
+
 
 const PORT = Number(process.env.PORT) || 3001;
-const DEFAULT_SESSAO_ID = "assembleia-2026-01";
+const NODE_ENV = process.env.NODE_ENV || "development";
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000").split(",");
+const DEFAULT_SESSAO_ID = process.env.DEFAULT_SESSION_ID || "assembleia-2026-01";
+
+
+const socketTokens = new Map<string, string>();
+
+/**
+ * Schema para criação de sessão
+ */
+const CreateSessionSchema = z.object({
+  session_id: z.string().min(3).max(50),
+  tokens_autorizados: z.array(z.string()).min(1),
+  opcoes: z.array(z.string()).optional(),
+});
+
+/**
+ * Schema para registro de cliente
+ */
+const ClientRegisterSchema = z.object({
+  token: z.string().optional(),
+});
+
+// ============================================================================
+// SETUP INICIAL
+// ============================================================================
 
 const app = express();
 const httpServer = createServer(app);
 
+// ✅ CORS Seguro
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN ?? "*",
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
-app.use(cors());
-app.use(express.json());
+// ============================================================================
+// MIDDLEWARE
+// ============================================================================
 
-app.get("/", (_req, res) => {
+// ✅ Parser JSON
+app.use(express.json({ limit: "1mb" }));
+
+// ✅ CORS middleware
+app.use(
+  cors({
+    origin: ALLOWED_ORIGINS,
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
+
+// ✅ Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // Máximo 100 requisições por window
+  message: "Muitas requisições deste IP, por favor tente mais tarde.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use(limiter);
+
+// ============================================================================
+// ROTAS HTTP
+// ============================================================================
+
+/**
+ * Health check
+ */
+app.get("/health", (_req: Request, res: Response) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
+/**
+ * Info do servidor
+ */
+app.get("/", (_req: Request, res: Response) => {
   res.json({
     service: "Digital Assembly Voting Server",
     status: "online",
-    version: "0.2.0",
+    version: "1.0.0",
     websocket: true,
     defaultSession: DEFAULT_SESSAO_ID,
+    environment: NODE_ENV,
   });
 });
-
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-app.get("/sessions/:sessaoId", (req, res) => {
-  const sessao = sessionStore.get(req.params.sessaoId);
-
-  if (!sessao) {
-    res.status(404).json({ error: "Sessão não encontrada." });
-    return;
-  }
-
-  res.json({
-    sessao_id: sessao.sessao_id,
-    placar_atual: sessao.placar_atual,
-    total_autorizados: sessao.tokens_autorizados.length,
-    total_votaram: sessao.tokens_que_ja_votaram.length,
-    votos_realizados: sessao.votos_realizados,
-  });
-});
-
-function createClientToken(): string {
-  return `TK_CLIENT_${randomUUID().slice(0, 8).toUpperCase()}`;
+function paramAsString(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
+/**
+ * Obter dados de uma sessão
+ */
+app.get("/sessions/:sessaoId", (req: Request, res: Response) => {
+  try {
+const sessao = sessionStore.get(paramAsString(req.params.sessaoId));
 
-function getTokensAindaAptos(sessao: {
-  tokens_autorizados: string[];
-  tokens_que_ja_votaram: string[];
-}): string[] {
-  return sessao.tokens_autorizados.filter(
-    (token) => !sessao.tokens_que_ja_votaram.includes(token)
-  );
-}
+    if (!sessao) {
+      res.status(404).json({ error: "Sessão não encontrada." });
+      return;
+    }
 
-app.post("/api/sessions", (req, res) => {
-  const { session_id, tokens_autorizados } = req.body ?? {};
-
-  if (!session_id || !Array.isArray(tokens_autorizados)) {
-    res.status(400).json({
-      error: "Campos obrigatórios: session_id, tokens_autorizados[]",
+    res.json({
+      sessao_id: sessao.sessao_id,
+      placar_atual: sessao.placar_atual,
+      total_autorizados: sessao.tokens_autorizados.length,
+      total_votaram: sessao.tokens_que_ja_votaram.length,
+      votos_realizados: sessao.votos_realizados,
     });
-    return;
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao buscar sessão" });
   }
-
-  if (sessionStore.get(session_id)) {
-    res.status(409).json({ error: "Sessão já existe." });
-    return;
-  }
-
-  const sessao = sessionStore.createFromPayload({
-    session_id,
-    tokens_autorizados,
-    opcoes: req.body.opcoes,
-  });
-
-  logger.success("SESSION", "Sessão de votação criada", {
-    sessao_id: sessao.sessao_id,
-    total_tokens: sessao.tokens_autorizados.length,
-  });
-
-  res.status(201).json({
-    session_id: sessao.sessao_id,
-    status: "OPEN",
-  });
 });
 
+/**
+ * Criar nova sessão
+ */
+app.post("/api/sessions", (req: Request, res: Response) => {
+  try {
+    // ✅ Validar schema
+    const validatedData = CreateSessionSchema.parse(req.body);
+
+    // ✅ Verificar se sessão já existe
+    if (sessionStore.get(validatedData.session_id)) {
+      res.status(409).json({ error: "Sessão já existe." });
+      return;
+    }
+
+    // ✅ Criar sessão
+    const sessao = sessionStore.createFromPayload({
+      session_id: validatedData.session_id,
+      tokens_autorizados: validatedData.tokens_autorizados,
+      opcoes: validatedData.opcoes,
+    });
+
+    logSessionCreated(sessao.sessao_id, sessao.tokens_autorizados.length);
+
+    res.status(201).json({
+      session_id: sessao.sessao_id,
+      status: "OPEN",
+      message: "Sessão criada com sucesso",
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        error: "Dados inválidos",
+        details: error.issues,
+      });
+      return;
+    }
+
+    res.status(500).json({ error: "Erro ao criar sessão" });
+  }
+});
+
+/**
+ * Adicionar token a uma sessão
+ */
+app.post("/api/sessions/:sessaoId/tokens", (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+
+    if (!token || typeof token !== "string") {
+      res.status(400).json({ error: "Token inválido" });
+      return;
+    }
+
+const sessao = sessionStore.addAuthorizedToken(paramAsString(req.params.sessaoId), token);
+    if (!sessao) {
+      res.status(404).json({ error: "Sessão não encontrada" });
+      return;
+    }
+
+    res.json({
+      message: "Token adicionado com sucesso",
+      sessao_id: sessao.sessao_id,
+      total_tokens: sessao.tokens_autorizados.length,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao adicionar token" });
+  }
+});
+
+/**
+ * Obter estatísticas globais
+ */
+app.get("/api/statistics", (_req: Request, res: Response) => {
+  try {
+    const stats = sessionStore.getGlobalStatistics();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao obter estatísticas" });
+  }
+});
+
+// ============================================================================
+// WEBSOCKET - EVENTOS
+// ============================================================================
+
+/**
+ * Conexão de cliente
+ */
 io.on("connection", (socket) => {
   const sessao = sessionStore.getDefault();
 
+  // ✅ Adicionar cliente ao room da sessão
   socket.join(sessao.sessao_id);
   logConnection(socket.id, sessao.sessao_id);
 
+  // ✅ Confirmar conexão
   socket.emit(SOCKET_EVENTS.CONNECTION_ACK, {
     message: "Conectado ao servidor de votação.",
     sessao_id: sessao.sessao_id,
     placar_atual: sessao.placar_atual,
   });
 
+  // ✅ Registro de cliente
   socket.on(SOCKET_EVENTS.CLIENT_REGISTER, (payload: unknown) => {
-    const requestedToken =
-      typeof payload === "string"
-        ? payload
-        : payload && typeof payload === "object" && "token" in payload
-          ? String((payload as { token?: unknown }).token ?? "")
-          : "";
+    try {
+      const validated = ClientRegisterSchema.parse(
+        typeof payload === "object" ? payload : {}
+      );
 
-    const token = requestedToken.trim() || createClientToken();
-    const updatedSession = sessionStore.addAuthorizedToken(sessao.sessao_id, token);
+      const requestedToken = validated.token?.trim() || tokenService.generateSecureToken();
+      const updatedSession = sessionStore.addAuthorizedToken(sessao.sessao_id, requestedToken);
 
-    if (!updatedSession) {
-      socket.emit(SOCKET_EVENTS.VOTE_ERROR, {
-        code: "SESSAO_NAO_ENCONTRADA",
-        message: "Sessão padrão não encontrada para registrar o cliente.",
+      if (!updatedSession) {
+        socket.emit(SOCKET_EVENTS.VOTE_ERROR, {
+          code: "SESSAO_NAO_ENCONTRADA",
+          message: "Sessão padrão não encontrada",
+        });
+        return;
+      }
+      socketTokens.set(socket.id, requestedToken); 
+
+
+      logClientAuthenticated(
+        requestedToken,
+        updatedSession.sessao_id,
+        socket.id,
+        updatedSession.tokens_autorizados.length
+      );
+
+      socket.emit(SOCKET_EVENTS.CLIENT_REGISTERED, {
+        token: requestedToken,
+        sessao_id: updatedSession.sessao_id,
       });
-      return;
+    } catch (error) {
+      socket.emit(SOCKET_EVENTS.VOTE_ERROR, {
+        code: "FORMATO_INVALIDO",
+        message: "Erro ao registrar cliente",
+      });
     }
-
-    logger.success("WEBSOCKET", "Cliente autenticado para votação", {
-      token,
-      sessao_id: updatedSession.sessao_id,
-      socket_id: socket.id,
-      total_tokens: updatedSession.tokens_autorizados.length,
-    });
-
-    socket.emit(SOCKET_EVENTS.CLIENT_REGISTERED, {
-      token,
-      sessao_id: updatedSession.sessao_id,
-    });
   });
 
+  // ✅ Requisição de dados da sessão
   socket.on(SOCKET_EVENTS.SESSION_REQUEST, () => {
     const currentSession = sessionStore.getDefault();
     const tokensAutorizadosAVotar = getTokensAindaAptos(currentSession);
@@ -162,25 +297,25 @@ io.on("connection", (socket) => {
     logger.info("WEBSOCKET", "Snapshot de sessão solicitado", {
       sessao_id: currentSession.sessao_id,
       socket_id: socket.id,
-      placar_atual: `A=${currentSession.placar_atual.sim} | B=${currentSession.placar_atual.nao}`,
-      tokens_autorizados: tokensAutorizadosAVotar,
-      tokens_que_ja_votaram: currentSession.tokens_que_ja_votaram,
+      tokens_aptos: tokensAutorizadosAVotar.length,
     });
 
     socket.emit(SOCKET_EVENTS.SESSION_DATA, {
       sessao_id: currentSession.sessao_id,
       placar_atual: currentSession.placar_atual,
-      tokens_autorizados: getTokensAindaAptos(currentSession),
+      tokens_autorizados: tokensAutorizadosAVotar,
       tokens_que_ja_votaram: currentSession.tokens_que_ja_votaram,
     });
   });
 
+  // ✅ Processamento de voto
   socket.on(SOCKET_EVENTS.CAST_VOTE, (payload: unknown) => {
     const payloadStr = typeof payload === "string" ? payload : String(payload);
-    const context = buildVoteContext(sessao, socket);
+    const context = buildVoteContext(sessao, socket, socketTokens.get(socket.id));
     const result = processVote(sessao, payloadStr, context);
 
     if (!result.success) {
+      // ✅ Logging detalhado de erros
       if (result.error.code === "FORMATO_INVALIDO") {
         logInvalidFormat(payloadStr, context);
       } else if (result.error.code === "TOKEN_NAO_AUTORIZADO") {
@@ -194,46 +329,77 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // ✅ Broadcast do novo placar
     const channel = placarChannel(sessao.sessao_id);
     io.to(sessao.sessao_id).emit(channel, result.placar);
 
-    logVoteAccepted(result, payloadStr);
+    logVoteAccepted(result, payloadStr, context);
     logVoteSummary(sessao);
   });
 
+  // ✅ Status de token
   socket.on("token_status_request", (token: unknown) => {
     const tokenStr = typeof token === "string" ? token : String(token);
     const status = getTokenStatus(sessao, tokenStr);
     socket.emit("token_status_response", status);
   });
 
+  // ✅ Geração de novo token
   socket.on("generate_token_request", () => {
-    const token = createClientToken();
-    sessionStore.addAuthorizedToken(sessao.sessao_id, token);
-    
-    logger.success("WEBSOCKET", "Token gerado via console de votação", {
-      token,
-      sessao_id: sessao.sessao_id,
-    });
+    const newToken = tokenService.generateSecureToken();
+    sessionStore.addAuthorizedToken(sessao.sessao_id, newToken);
 
-    socket.emit("generate_token_response", { token });
+    logTokenGenerated(newToken, sessao.sessao_id);
+
+    socket.emit("generate_token_response", { token: newToken });
   });
 
+  // ✅ Listar votos
   socket.on("list_votes_request", () => {
-    socket.emit("list_votes_response", { votos: sessao.votos_realizados });
+    socket.emit("list_votes_response", {
+      votos: sessao.votos_realizados,
+    });
   });
 
+  // ✅ Desconexão
   socket.on("disconnect", () => {
+    socketTokens.delete(socket.id); 
     logDisconnection(socket.id);
   });
 });
 
+// ============================================================================
+// STARTUP
+// ============================================================================
+
 httpServer.listen(PORT, () => {
-  logger.info("SERVER", "Servidor iniciado", {
+  logger.success("SERVER", "Servidor iniciado com sucesso", {
+    port: PORT,
     url: `http://localhost:${PORT}`,
     websocket: `ws://localhost:${PORT}`,
+    environment: NODE_ENV,
   });
+
   logger.info("SERVER", "Sistema aguardando conexões...", {
     sessao_padrao: DEFAULT_SESSAO_ID,
+    allowed_origins: ALLOWED_ORIGINS.length,
+  });
+
+  // ✅ Iniciar scheduler de limpeza de tokens
+  startTokenCleanupScheduler(60);
+  logger.info("SERVER", "Scheduler de tokens iniciado");
+});
+
+// ============================================================================
+// GRACEFUL SHUTDOWN
+// ============================================================================
+
+process.on("SIGTERM", () => {
+  logger.alert("SERVER", "SIGTERM recebido, encerrando gracefully...");
+  httpServer.close(() => {
+    logger.info("SERVER", "Servidor encerrado");
+    process.exit(0);
   });
 });
+
+export { httpServer, io };
