@@ -124,9 +124,9 @@ function handleCommand(line: string): void {
       break;
 
     case "PLACAR":
-      console.log("Placar atual (em cache):");
-      console.log(`  sim: ${placarAtual.sim}`);
-      console.log(`  nao: ${placarAtual.nao}`);
+      console.log("Placar atual");
+      console.log(`  Sim: ${placarAtual.sim}`);
+      console.log(`  Não: ${placarAtual.nao}`);
       promptUser();
       break;
 

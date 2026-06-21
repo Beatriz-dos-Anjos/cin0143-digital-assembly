@@ -10,12 +10,6 @@ import { logger, formatTimestamp } from "../loggers/logger";
 import { getTokensAindaAptos, getVotingStatistics } from "../domain/vote-validator";
 
 
-/**
- * Extrai o IP do cliente de um socket
- * Considera proxy reverso com x-forwarded-for
- * @param socket Socket do cliente
- * @returns IP do cliente ou "desconhecido"
- */
 export function resolveClientIp(socket: Socket): string {
   const forwarded = socket.handshake.headers["x-forwarded-for"];
   
@@ -27,14 +21,7 @@ export function resolveClientIp(socket: Socket): string {
   return socket.handshake.address ?? "desconhecido";
 }
 
-/**
- * Constrói contexto de voto a partir de uma sessão e socket
- * @param sessao Sessão ativa
- * @param socket Socket do cliente
- * @param socketToken Token registrado para este socket 
- * @returns Contexto de voto
 
- */
 export function buildVoteContext(sessao: SessaoVotacao, socket: Socket, socketToken?: string): VoteContext {
   return {
     sessao_id: sessao.sessao_id,
@@ -45,11 +32,7 @@ export function buildVoteContext(sessao: SessaoVotacao, socket: Socket, socketTo
 }
 
 
-/**
- * Registra conexão de um cliente
- * @param socketId ID do socket
- * @param sessaoId ID da sessão
- */
+
 export function logConnection(socketId: string, sessaoId: string): void {
   logger.info("WEBSOCKET", "Cliente conectado", {
     sessao_id: sessaoId,
@@ -57,10 +40,7 @@ export function logConnection(socketId: string, sessaoId: string): void {
   });
 }
 
-/**
- * Registra desconexão de um cliente
- * @param socketId ID do socket
- */
+
 export function logDisconnection(socketId: string): void {
   logger.info("WEBSOCKET", "Cliente desconectado", {
     socket_id: socketId,
@@ -68,12 +48,7 @@ export function logDisconnection(socketId: string): void {
 }
 
 
-/**
- * Registra voto aceito com sucesso
- * @param result Resultado do processamento
- * @param payload Payload original
- * @param context Contexto da requisição
- */
+
 export function logVoteAccepted(
   result: Extract<VoteResult, { success: true }>,
   payload: string,
@@ -99,12 +74,7 @@ export function logVoteAccepted(
 }
 
 
-/**
- * Registra tentativa de voto com token não autorizado
- * @param token Token inválido
- * @param context Contexto da requisição
- * @param payload Payload original
- */
+
 export function logUnauthorizedVote(
   token: string,
   context: VoteContext,
@@ -126,12 +96,7 @@ export function logUnauthorizedVote(
 }
 
 
-/**
- * Registra tentativa de voto duplicado
- * @param duplicate Contexto de voto duplicado
- * @param context Contexto da requisição
- * @param payload Payload original
- */
+
 export function logDuplicateVote(
   duplicate: DuplicateVoteContext,
   context: VoteContext,
@@ -160,11 +125,6 @@ export function logDuplicateVote(
   });
 }
 
-/**
- * Registra payload com formato inválido
- * @param payload Payload malformado
- * @param context Contexto da requisição
- */
 export function logInvalidFormat(payload: string, context: VoteContext): void {
   logger.warning("VOTE_VALIDATION", "Payload malformado rejeitado", {
     socket_id: context.socket_id,
@@ -175,10 +135,6 @@ export function logInvalidFormat(payload: string, context: VoteContext): void {
 }
 
 
-/**
- * Registra resumo completo da votação
- * @param sessao Sessão ativa
- */
 export function logVoteSummary(sessao: SessaoVotacao): void {
   const stats = getVotingStatistics(sessao);
   const tokensAptos = getTokensAindaAptos(sessao);
@@ -195,11 +151,7 @@ export function logVoteSummary(sessao: SessaoVotacao): void {
 }
 
 
-/**
- * Registra criação de nova sessão
- * @param sessaoId ID da nova sessão
- * @param totalTokens Total de tokens autorizados
- */
+
 export function logSessionCreated(sessaoId: string, totalTokens: number): void {
   logger.success("SESSION", "Sessão de votação criada com sucesso", {
     sessao_id: sessaoId,
@@ -208,13 +160,7 @@ export function logSessionCreated(sessaoId: string, totalTokens: number): void {
   });
 }
 
-/**
- * Registra cliente autenticado em uma sessão
- * @param token Token do cliente
- * @param sessaoId ID da sessão
- * @param socketId ID do socket
- * @param totalTokens Total de tokens na sessão
- */
+
 export function logClientAuthenticated(
   token: string,
   sessaoId: string,
@@ -229,11 +175,7 @@ export function logClientAuthenticated(
   });
 }
 
-/**
- * Registra token gerado via console
- * @param token Token gerado
- * @param sessaoId ID da sessão
- */
+
 export function logTokenGenerated(token: string, sessaoId: string): void {
   logger.success("TOKEN_GENERATION", "Token gerado via console de votação", {
     token: token.substring(0, 8) + "***",
@@ -243,11 +185,6 @@ export function logTokenGenerated(token: string, sessaoId: string): void {
 }
 
 
-/**
- * Registra erro crítico de sistema
- * @param error Erro capturado
- * @param context Contexto onde ocorreu
- */
 export function logSystemError(error: Error, context: string): void {
   logger.error("SYSTEM", `Erro crítico em ${context}`, {
     error_message: error.message,

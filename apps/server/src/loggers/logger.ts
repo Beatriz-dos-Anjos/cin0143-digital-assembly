@@ -26,11 +26,7 @@ const LOG_FILES = {
 } as const;
 
 
-/**
- * Formata timestamp em formato legível
- * @param date Data a formatar (padrão: agora)
- * @returns String formatada YYYY-MM-DD HH:mm:ss
- */
+
 export function formatTimestamp(date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return (
@@ -46,11 +42,7 @@ function ensureLogsDir(): void {
   }
 }
 
-/**
- * Obtém tamanho de um arquivo
- * @param filePath Caminho do arquivo
- * @returns Tamanho em bytes ou 0 se não existe
- */
+
 function getFileSize(filePath: string): number {
   try {
     return fs.statSync(filePath).size;
@@ -59,10 +51,6 @@ function getFileSize(filePath: string): number {
   }
 }
 
-/**
- * Rotaciona um arquivo de log se excedeu o tamanho máximo
- * @param logFilePath Caminho do arquivo de log
- */
 function rotateLogIfNeeded(logFilePath: string): void {
   const fileSize = getFileSize(logFilePath);
 
@@ -77,18 +65,10 @@ function rotateLogIfNeeded(logFilePath: string): void {
 
     fs.renameSync(logFilePath, rotatedPath);
 
-    // Compactar arquivo rotacionado (opcional)
-    // zlib.gzip(fs.readFileSync(rotatedPath), (err, result) => {
-    //   if (!err) fs.writeFileSync(rotatedPath + '.gz', result);
-    // });
+   
   }
 }
 
-/**
- * Formata uma linha de log para console com cores e estrutura
- * @param log Entrada de log estruturada
- * @returns String formatada
- */
 function formatConsoleLine(log: StructuredLog): string {
   const colors = {
     INFO: "\x1b[36m",   
@@ -124,11 +104,7 @@ function formatConsoleLine(log: StructuredLog): string {
   return [header, ...detailLines].join("\n");
 }
 
-/**
- * Formata uma linha de log para arquivo (sem cores)
- * @param log Entrada de log estruturada
- * @returns String formatada para arquivo
- */
+
 function formatFileLine(log: StructuredLog): string {
   const details = log.details ? JSON.stringify(log.details) : "";
   return [
@@ -140,12 +116,7 @@ function formatFileLine(log: StructuredLog): string {
   ].join(" | ");
 }
 
-/**
- * Adiciona uma linha a um arquivo de log
- * @param filename Nome do arquivo
- * @param line Linha a adicionar
- * @param asJson Se deve formatar como JSON
- */
+
 function appendToFile(filename: string, line: string): void {
   ensureLogsDir();
   const filePath = path.join(LOGS_DIR, filename);
@@ -158,11 +129,6 @@ function appendToFile(filename: string, line: string): void {
   }
 }
 
-/**
- * Determina quais arquivos receberão um log
- * @param level Nível de log
- * @returns Array de nomes de arquivos
- */
 function resolveLogFiles(level: LogLevel): string[] {
   const files : string[]= [LOG_FILES.app];
 
@@ -180,14 +146,7 @@ function resolveLogFiles(level: LogLevel): string[] {
 
 
 export class Logger {
-  /**
-   * Registra um log com nível e detalhes
-   * @param level Nível do log
-   * @param module Módulo que gerou o log
-   * @param message Mensagem
-   * @param details Detalhes adicionais
-   * @returns Entrada de log estruturada
-   */
+
   log(
     level: LogLevel,
     module: string,

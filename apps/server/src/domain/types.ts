@@ -202,13 +202,7 @@ export function isValidOption(value: unknown): value is VoteOption {
   return typeof value === "string" && VALID_OPTIONS.includes(value as VoteOption);
 }
 
-/**
- * Cria um erro padrão para voto inválido
- * @param code Código do erro
- * @param message Mensagem
- * @param severity Severidade
- * @returns Objeto VoteError
- */
+
 export function createVoteError(
   code: VoteErrorCode,
   message: string,

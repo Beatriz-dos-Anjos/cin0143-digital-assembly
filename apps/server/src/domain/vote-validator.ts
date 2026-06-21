@@ -14,12 +14,7 @@ import { formatTimestamp } from "../loggers/logger";
 import { sessionStore } from "../repository/session-store";
 
 
-/**
- * Obtém o status de autorização de um token
- * @param sessao Sessão ativa
- * @param token Token a verificar
- * @returns Status do token
- */
+
 export function getTokenStatus(
   sessao: SessaoVotacao,
   token: string
@@ -37,22 +32,12 @@ export function getTokenStatus(
   };
 }
 
-/**
- * Verifica se um token é autorizado para a sessão
- * @param sessao Sessão ativa
- * @param token Token a verificar
- * @returns true se autorizado
- */
+
 function isTokenAuthorized(sessao: SessaoVotacao, token: string): boolean {
   return sessao.tokens_autorizados.includes(token);
 }
 
-/**
- * Verifica se um token já votou
- * @param sessao Sessão ativa
- * @param token Token a verificar
- * @returns Voto anterior ou undefined
- */
+
 function findPreviousVote(
   sessao: SessaoVotacao,
   token: string
@@ -60,16 +45,7 @@ function findPreviousVote(
   return sessionStore.findVoteByToken(sessao, token);
 }
 
-/**
- * Processa um voto de forma segura com validação completa
- * ✅ Validações ocorrem ANTES de qualquer mutação
- * ✅ Estado é atualizado atomicamente
- * 
- * @param sessao Sessão de votação
- * @param payload Payload do voto
- * @param context Contexto da requisição
- * @returns Resultado do processamento
- */
+
 export function processVote(
   sessao: SessaoVotacao,
   payload: unknown,
@@ -171,15 +147,7 @@ export function processVote(
   }
 }
 
-/**
- * Processa um voto formatado manualmente (para console/testes)
- * Útil para testes e operações administrativas
- * 
- * @param sessao Sessão ativa
- * @param token Token do votante
- * @param opcao Opção de voto
- * @returns Resultado do processamento
- */
+
 export function castVoteFromManual(
   sessao: SessaoVotacao,
   token: string,
@@ -192,23 +160,13 @@ export function castVoteFromManual(
 }
 
 
-/**
- * Calcula tokens ainda aptos a votar (usando Set para O(n) em vez de O(n²))
- * @param sessao Sessão ativa
- * @returns Array de tokens aptos
- */
+
 export function getTokensAindaAptos(sessao: SessaoVotacao): string[] {
   const votadosSet = new Set(sessao.tokens_que_ja_votaram);
   return sessao.tokens_autorizados.filter((token) => !votadosSet.has(token));
 }
 
-/**
- * Calcula percentual de votos
- * @param votos Número de votos
- * @param total Total de votos
- * @param casasDecimais Casas decimais (padrão: 1)
- * @returns Percentual formatado
- */
+
 export function calculatePercentage(
   votos: number,
   total: number,
@@ -219,11 +177,6 @@ export function calculatePercentage(
   return `${percentual.toFixed(casasDecimais)}%`;
 }
 
-/**
- * Obtém resumo estatístico da sessão
- * @param sessao Sessão ativa
- * @returns Objeto com estatísticas
- */
 export function getVotingStatistics(sessao: SessaoVotacao) {
   const total = sessao.votos_realizados.length;
   const sim = sessao.placar_atual.sim;

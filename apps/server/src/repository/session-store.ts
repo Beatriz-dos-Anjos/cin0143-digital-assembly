@@ -38,11 +38,7 @@ export class SessionRepository {
     });
   }
 
-  /**
-   * Obtém uma sessão por ID
-   * @param sessaoId ID da sessão
-   * @returns Sessão ou undefined se não existe
-   */
+
   get(sessaoId: string): SessaoVotacao | undefined {
     return this.sessions.get(sessaoId);
   }
