@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "npm run dev --workspace=apps/server",
     "dev:server": "npm run dev --workspace=apps/server",
+    "dev:web": "npm run dev --workspace=apps/web",
     "client": "tsx client.ts",
     "build": "npm run build --workspace=apps/server",
     "start": "npm run start --workspace=apps/server",

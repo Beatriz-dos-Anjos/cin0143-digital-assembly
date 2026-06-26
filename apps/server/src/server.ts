@@ -218,8 +218,34 @@ io.on("connection", (socket) => {
         typeof payload === "object" ? payload : {}
       );
 
-      const requestedToken = validated.token?.trim() || tokenService.generateSecureToken();
-      const updatedSession = sessionStore.addAuthorizedToken(sessao.sessao_id, requestedToken);
+      const explicitToken = validated.token?.trim();
+      const requestedToken = explicitToken || tokenService.generateSecureToken();
+
+      const currentSession = sessionStore.get(sessao.sessao_id);
+      if (!currentSession) {
+        socket.emit(SOCKET_EVENTS.VOTE_ERROR, {
+          code: "SESSAO_NAO_ENCONTRADA",
+          message: "Sessão padrão não encontrada",
+        });
+        return;
+      }
+
+      if (
+        explicitToken &&
+        !currentSession.tokens_autorizados.includes(explicitToken)
+      ) {
+        socket.emit(SOCKET_EVENTS.VOTE_ERROR, {
+          code: "TOKEN_NAO_AUTORIZADO",
+          message: "Token não autorizado para esta sessão.",
+          severity: "HIGH",
+        });
+        return;
+      }
+
+      const updatedSession = sessionStore.addAuthorizedToken(
+        sessao.sessao_id,
+        requestedToken
+      );
 
       if (!updatedSession) {
         socket.emit(SOCKET_EVENTS.VOTE_ERROR, {
@@ -228,7 +254,7 @@ io.on("connection", (socket) => {
         });
         return;
       }
-      socketTokens.set(socket.id, requestedToken); 
+      socketTokens.set(socket.id, requestedToken);
 
 
       logClientAuthenticated(
