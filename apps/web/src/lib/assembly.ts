@@ -39,7 +39,7 @@ export const DURACAO_SEGUNDOS = 180
 /** Lista de tokens autorizados (em produção, isto vive no servidor). */
 export const TOKENS_AUTORIZADOS: string[] = Array.from(
   { length: 30 },
-  (_, i) => `DELEGADO-${String(i + 1).padStart(3, "0")}`,
+  (_, i) => `TOKEN-${String(i + 1).padStart(3, "0")}`,
 )
 
 function gerarSessaoId(): string {

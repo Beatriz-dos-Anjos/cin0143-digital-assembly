@@ -26,7 +26,7 @@ export function VotingBooth() {
     setFeedback(null)
 
     if (!token.trim()) {
-      setFeedback({ tipo: "erro", mensagem: "Informe seu token de delegado antes de votar." })
+      setFeedback({ tipo: "erro", mensagem: "Informe seu token antes de votar." })
       return
     }
 
@@ -81,7 +81,7 @@ export function VotingBooth() {
           </div>
 
           <h1 className="mt-6 text-3xl font-black tracking-tight text-card-foreground">
-            Cabine do delegado
+            Cabine de Votação
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Insira seu token e registre seu voto. Cada token é válido uma única vez.
@@ -89,14 +89,14 @@ export function VotingBooth() {
 
           <div className="mt-7">
             <label htmlFor="token" className="text-xs font-semibold tracking-wider text-muted-foreground">
-              TOKEN DE DELEGADO
+              TOKEN
             </label>
             <input
               id="token"
               value={token}
               onChange={(e) => setToken(e.target.value)}
               disabled={encerrada}
-              placeholder="DELEGADO-XXX"
+              placeholder="TOKEN-XXX"
               autoComplete="off"
               spellCheck={false}
               className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-mono text-sm tracking-widest outline-none transition-all placeholder:text-muted-foreground/50 focus-visible:border-foreground/30 focus-visible:ring-2 focus-visible:ring-foreground/10 disabled:cursor-not-allowed disabled:opacity-40"

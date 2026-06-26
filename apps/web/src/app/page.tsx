@@ -57,7 +57,7 @@ export default function HomePage() {
           </span>
 
           <h2 className="mt-5 text-xl font-bold tracking-tight text-card-foreground">
-            Cabine do delegado
+            Cabine de Votação
           </h2>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
             Autentique com seu token e registre seu voto de forma privada.
