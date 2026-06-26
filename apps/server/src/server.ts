@@ -7,6 +7,7 @@ import { Server } from "socket.io";
 import { z } from "zod";
 
 import { placarChannel, SOCKET_EVENTS } from "../src/domain/types";
+import { withSessionLock } from "../src/domain/lock.service";
 import { processVote, getTokenStatus, getTokensAindaAptos } from "../src/domain/vote-validator";
 import {
   buildVoteContext,
@@ -268,10 +269,12 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on(SOCKET_EVENTS.CAST_VOTE, (payload: unknown) => {
+  socket.on(SOCKET_EVENTS.CAST_VOTE, async (payload: unknown) => {
     const payloadStr = typeof payload === "string" ? payload : String(payload);
     const context = buildVoteContext(sessao, socket, socketTokens.get(socket.id));
-    const result = processVote(sessao, payloadStr, context);
+    const result = await withSessionLock(sessao.sessao_id, () =>
+      processVote(sessao, payloadStr, context)
+    );
 
     if (!result.success) {
       if (result.error.code === "FORMATO_INVALIDO") {

@@ -45,41 +45,41 @@ export function processVote(
   sessao: SessaoVotacao,
   payload: unknown,
   context?: VoteContext
-): VoteResult {
+): Promise<VoteResult> {
   const parsed = parseCastVote(payload);
 
   if (!parsed) {
-    return {
+    return Promise.resolve({
       success: false,
       error: createVoteError(
         "FORMATO_INVALIDO",
         "Payload inválido. Use o formato: CAST_VOTE|<token>|<opcao>",
         "MEDIUM"
       ),
-    };
+    });
   }
 
   const { token, opcao } = parsed;
   if (context?.socket_token && context.socket_token !== token) {
-    return {
+    return Promise.resolve({
       success: false,
       error: createVoteError(
         "TOKEN_NAO_AUTORIZADO",
         "Você só pode votar usando o token gerado para esta conexão.",
         "HIGH"
       ),
-    };
+    });
   }
 
   if (!isTokenAuthorized(sessao, token)) {
-    return {
+    return Promise.resolve({
       success: false,
       error: createVoteError(
         "TOKEN_NAO_AUTORIZADO",
         "Token não autorizado para esta sessão.",
         "HIGH"
       ),
-    };
+    });
   }
 
   const votoAnterior = findPreviousVote(sessao, token);
@@ -93,7 +93,7 @@ export function processVote(
       tentativa_reversao: votoAnterior.voto !== opcao,
     };
 
-    return {
+    return Promise.resolve({
       success: false,
       error: createVoteError(
         "VOTO_DUPLICADO",
@@ -101,7 +101,7 @@ export function processVote(
         "HIGH"
       ),
       duplicate,
-    };
+    });
   }
 
   const voto: VotoRegistrado = {
@@ -125,20 +125,20 @@ export function processVote(
     sessao.tokens_que_ja_votaram = [...sessao.tokens_que_ja_votaram, token];
     sessao.votos_realizados = [...sessao.votos_realizados, voto];
 
-    return {
+    return Promise.resolve({
       success: true,
       placar: { ...novosPlacar },
       voto,
-    };
+    });
   } catch (error) {
-    return {
+    return Promise.resolve({
       success: false,
       error: createVoteError(
         "FORMATO_INVALIDO",
         "Erro ao processar voto. Tente novamente.",
         "CRITICAL"
       ),
-    };
+    });
   }
 }
 
@@ -146,7 +146,7 @@ export function castVoteFromManual(
   sessao: SessaoVotacao,
   token: string,
   opcao: VoteOption
-): VoteResult {
+): Promise<VoteResult> {
   const payload = `CAST_VOTE|${token}|${opcao}`;
   return processVote(sessao, payload, {
     sessao_id: sessao.sessao_id,
