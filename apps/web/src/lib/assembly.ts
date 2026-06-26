@@ -1,4 +1,6 @@
-import type { ServerPlacar } from "@/src/lib/socket"
+import type { ServerPlacar } from "@/src/lib/api"
+
+export type { ServerPlacar }
 
 export type Opcao = "SIM" | "NAO"
 

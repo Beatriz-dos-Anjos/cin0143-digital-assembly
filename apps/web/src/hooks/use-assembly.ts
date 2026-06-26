@@ -6,13 +6,12 @@ import {
   type AssemblyState,
   type Placar,
 } from "@/src/lib/assembly"
+import { DEFAULT_SESSAO_ID, getSession, type ServerPlacar } from "@/src/lib/api"
 import {
   connectSocket,
-  getSocket,
   placarChannel,
   SOCKET_EVENTS,
   type ConnectionAck,
-  type ServerPlacar,
 } from "@/src/lib/socket"
 
 const EMPTY_PLACAR: Placar = { SIM: 0, NAO: 0 }
@@ -30,7 +29,6 @@ export function useSocketSession() {
 
     const onConnect = () => {
       setState((prev) => ({ ...prev, connected: true }))
-      socket.emit(SOCKET_EVENTS.SESSION_REQUEST)
     }
 
     const onDisconnect = () => {
@@ -72,29 +70,18 @@ export function useSocketSession() {
       applySession(data.sessao_id, data.placar_atual)
     }
 
-    const onSessionData = (data: {
-      sessao_id: string
-      placar_atual: ServerPlacar
-    }) => {
-      applySession(data.sessao_id, data.placar_atual)
-    }
-
     socket.on("connect", onConnect)
     socket.on("disconnect", onDisconnect)
     socket.on(SOCKET_EVENTS.CONNECTION_ACK, onConnectionAck)
-    socket.on(SOCKET_EVENTS.SESSION_DATA, onSessionData)
 
     if (socket.connected) {
       onConnect()
-    } else {
-      socket.emit(SOCKET_EVENTS.SESSION_REQUEST)
     }
 
     return () => {
       socket.off("connect", onConnect)
       socket.off("disconnect", onDisconnect)
       socket.off(SOCKET_EVENTS.CONNECTION_ACK, onConnectionAck)
-      socket.off(SOCKET_EVENTS.SESSION_DATA, onSessionData)
 
       if (activePlacarChannel) {
         socket.off(activePlacarChannel, onPlacar)
@@ -102,9 +89,20 @@ export function useSocketSession() {
     }
   }, [])
 
-  const requestSession = useCallback(() => {
-    getSocket().emit(SOCKET_EVENTS.SESSION_REQUEST)
-  }, [])
+  const requestSession = useCallback(async () => {
+    const sessaoId = state.sessao_id || DEFAULT_SESSAO_ID
+
+    try {
+      const session = await getSession(sessaoId)
+      setState((prev) => ({
+        ...prev,
+        sessao_id: session.sessao_id,
+        placar_atual: fromServerPlacar(session.placar_atual),
+      }))
+    } catch {
+      // mantém estado atual; socket continua como fonte ao vivo
+    }
+  }, [state.sessao_id])
 
   return { state, requestSession }
 }
