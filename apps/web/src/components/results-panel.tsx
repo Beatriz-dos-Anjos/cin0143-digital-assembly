@@ -1,10 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Clock, Radio } from "lucide-react"
 import { percentual, totalVotos, type Opcao } from "@/src/lib/assembly"
 import { formatarTempo, useAssembly } from "@/src/hooks/use-assembly"
-import { Countdown, LiveBadge, SessionChip } from "@/src/components/assembly-chips"
 import { cn } from "@/src/lib/utils"
 
 export function ResultsPanel() {
@@ -16,7 +15,7 @@ export function ResultsPanel() {
   const pctNao = percentual(placar.NAO, total)
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:py-16">
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -25,41 +24,103 @@ export function ResultsPanel() {
         Voltar
       </Link>
 
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <SessionChip id={state?.sessao_id ?? "ASSEMBLEIA"} />
-          <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-balance">Apuração em tempo real</h1>
-          <p className="mt-2 leading-relaxed text-muted-foreground">
-            Painel público — atualizado por broadcast a cada voto válido.
+          <span className="inline-flex items-center rounded-full border border-border bg-secondary px-3 py-1 font-mono text-xs font-semibold tracking-wider text-secondary-foreground">
+            {state?.sessao_id ?? "ASSEMBLEIA"}
+          </span>
+          <h1 className="mt-3 text-4xl font-black tracking-tight text-balance">
+            Apuração em tempo real
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Painel público atualizado a cada voto registrado.
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <LiveBadge ativo={!encerrada} />
-          <Countdown tempo={formatarTempo(segundosRestantes)} encerrada={encerrada} />
+
+        <div className="flex shrink-0 items-center gap-3">
+          <div
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold tracking-wider",
+              encerrada
+                ? "border-border bg-secondary text-muted-foreground"
+                : "border-blue-500/30 bg-blue-500/10 text-blue-400",
+            )}
+          >
+            {encerrada ? (
+              "ENCERRADO"
+            ) : (
+              <>
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-blue-500" />
+                </span>
+                AO VIVO
+              </>
+            )}
+          </div>
+
+          <div
+            className={cn(
+              "inline-flex items-center gap-1.5 font-mono text-sm font-bold tabular-nums",
+              encerrada ? "text-red-400" : "text-foreground",
+            )}
+          >
+            <Clock className="size-3.5" aria-hidden />
+            {formatarTempo(segundosRestantes)}
+          </div>
         </div>
       </header>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <ScoreCard opcao="SIM" valor={placar.SIM} percentual={pctSim} />
         <ScoreCard opcao="NAO" valor={placar.NAO} percentual={pctNao} />
       </div>
 
-      <section className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 sm:p-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-40"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.6) 50%, transparent)",
+          }}
+        />
+
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-card-foreground">Distribuição</h2>
-          <span className="font-mono text-sm text-muted-foreground">
-            {total} voto(s) computado(s)
+          <h2 className="text-base font-bold text-card-foreground">Distribuição</h2>
+          <span className="font-mono text-xs text-muted-foreground">
+            {total} voto{total !== 1 ? "s" : ""}
           </span>
         </div>
 
-        <div className="mt-4 flex h-4 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
-          <div className="bg-sim transition-all duration-500 ease-out" style={{ width: `${pctSim}%` }} />
-          <div className="bg-nao transition-all duration-500 ease-out" style={{ width: `${pctNao}%` }} />
+        <div
+          className="mt-4 flex h-3 w-full overflow-hidden rounded-full bg-muted"
+          aria-hidden
+          role="presentation"
+        >
+          <div
+            className="h-full bg-blue-600 transition-all duration-700 ease-out"
+            style={{ width: `${pctSim}%` }}
+          />
+          <div
+            className="h-full bg-red-500 transition-all duration-700 ease-out"
+            style={{ width: `${pctNao}%` }}
+          />
         </div>
 
-        <div className="mt-3 flex items-center justify-between font-mono text-xs text-muted-foreground">
-          <span>SIM · {pctSim.toFixed(1)}%</span>
-          <span>NÃO · {pctNao.toFixed(1)}%</span>
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="size-2.5 rounded-full bg-blue-600" aria-hidden />
+            <span className="font-mono text-xs font-semibold text-muted-foreground">
+              SIM <span className="ml-1 text-foreground">{pctSim.toFixed(1)}%</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs font-semibold text-muted-foreground">
+              NÃO <span className="mr-1 text-foreground">{pctNao.toFixed(1)}%</span>
+            </span>
+            <span className="size-2.5 rounded-full bg-red-500" aria-hidden />
+          </div>
         </div>
       </section>
     </div>
@@ -69,40 +130,63 @@ export function ResultsPanel() {
 function ScoreCard({
   opcao,
   valor,
-  percentual,
+  percentual: pct,
 }: {
   opcao: Opcao
   valor: number
   percentual: number
 }) {
   const isSim = opcao === "SIM"
+
   return (
     <div
       className={cn(
-        "rounded-3xl border p-6 sm:p-8",
-        isSim ? "border-sim/20 bg-sim-soft" : "border-nao/20 bg-nao-soft",
+        "relative overflow-hidden rounded-3xl border p-6 sm:p-8",
+        isSim
+          ? "border-blue-500/20 bg-blue-500/6"
+          : "border-red-500/20 bg-red-500/6",
       )}
     >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-0 top-0 size-32 -translate-y-1/2 translate-x-1/2 rounded-full blur-2xl"
+        style={{
+          background: isSim
+            ? "hsl(220 80% 60% / 0.12)"
+            : "hsl(0 75% 55% / 0.10)",
+        }}
+      />
+
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold tracking-widest text-muted-foreground">
+        <span
+          className={cn(
+            "text-xs font-bold tracking-[0.18em]",
+            isSim ? "text-blue-400" : "text-red-400",
+          )}
+        >
           {isSim ? "SIM" : "NÃO"}
         </span>
-        <span className="font-mono text-sm text-muted-foreground">{percentual.toFixed(1)}%</span>
+        <span className="font-mono text-xs font-semibold text-muted-foreground">
+          {pct.toFixed(1)}%
+        </span>
       </div>
 
       <p
         className={cn(
-          "mt-3 text-7xl font-extrabold tabular-nums tracking-tight transition-all",
-          isSim ? "text-sim" : "text-nao",
+          "mt-3 text-7xl font-black tabular-nums tracking-tight transition-all duration-300",
+          isSim ? "text-blue-500" : "text-red-500",
         )}
       >
         {valor}
       </p>
 
-      <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-card">
+      <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-card/60">
         <div
-          className={cn("h-full transition-all duration-500 ease-out", isSim ? "bg-sim" : "bg-nao")}
-          style={{ width: `${percentual}%` }}
+          className={cn(
+            "h-full transition-all duration-700 ease-out",
+            isSim ? "bg-blue-500" : "bg-red-500",
+          )}
+          style={{ width: `${pct}%` }}
         />
       </div>
     </div>

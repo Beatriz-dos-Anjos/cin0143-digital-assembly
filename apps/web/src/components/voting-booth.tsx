@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { AlertCircle, ArrowLeft, CheckCircle2, Lock } from "lucide-react"
+import { AlertCircle, ArrowLeft, CheckCircle2, Lock, Clock } from "lucide-react"
 import { castVote, type CastVoteResult, type Opcao } from "@/src/lib/assembly"
 import { formatarTempo, useAssembly } from "@/src/hooks/use-assembly"
 import { Countdown, SessionChip } from "@/src/components/assembly-chips"
@@ -31,7 +31,6 @@ export function VotingBooth() {
     }
 
     setVotando(opcao)
-    // simula a latência de ida/volta ao servidor (socket.emit -> ack)
     setTimeout(() => {
       const resultado: CastVoteResult = castVote(token, opcao)
       if (resultado.ok) {
@@ -45,7 +44,7 @@ export function VotingBooth() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-md space-y-4 px-4 py-10 sm:py-16">
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -54,84 +53,110 @@ export function VotingBooth() {
         Voltar
       </Link>
 
-      <section className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-8">
-        <header className="flex items-start justify-between gap-4">
-          <SessionChip id={sessaoId} />
-          <Countdown tempo={formatarTempo(segundosRestantes)} encerrada={encerrada} />
-        </header>
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, hsl(220 80% 70% / 0.4) 40%, hsl(0 75% 60% / 0.4) 60%, transparent)",
+          }}
+        />
 
-        <h1 className="mt-5 text-3xl font-bold tracking-tight text-card-foreground">Cabine do delegado</h1>
-        <p className="mt-2 leading-relaxed text-muted-foreground">
-          Insira seu token de autenticação e registre seu voto. Cada token vota uma única vez.
-        </p>
+        <div className="p-6 sm:p-8">
+          <div className="flex items-center justify-between gap-4">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1 font-mono text-xs font-semibold tracking-wider text-secondary-foreground">
+              {sessaoId}
+            </span>
 
-        <div className="mt-6">
-          <label htmlFor="token" className="text-sm font-semibold text-card-foreground">
-            Token de delegado
-          </label>
-          <input
-            id="token"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            disabled={encerrada}
-            placeholder="DELEGADO-XXX"
-            autoComplete="off"
-            spellCheck={false}
-            className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-mono text-sm tracking-wide outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60"
-          />
+            <div
+              className={cn(
+                "inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums",
+                encerrada ? "text-red-400" : "text-muted-foreground",
+              )}
+            >
+              <Clock className="size-3.5" aria-hidden />
+              <span>{formatarTempo(segundosRestantes)}</span>
+            </div>
+          </div>
+
+          <h1 className="mt-6 text-3xl font-black tracking-tight text-card-foreground">
+            Cabine do delegado
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Insira seu token e registre seu voto. Cada token é válido uma única vez.
+          </p>
+
+          <div className="mt-7">
+            <label htmlFor="token" className="text-xs font-semibold tracking-wider text-muted-foreground">
+              TOKEN DE DELEGADO
+            </label>
+            <input
+              id="token"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              disabled={encerrada}
+              placeholder="DELEGADO-XXX"
+              autoComplete="off"
+              spellCheck={false}
+              className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-mono text-sm tracking-widest outline-none transition-all placeholder:text-muted-foreground/50 focus-visible:border-foreground/30 focus-visible:ring-2 focus-visible:ring-foreground/10 disabled:cursor-not-allowed disabled:opacity-40"
+            />
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <VoteButton
+              opcao="SIM"
+              onClick={() => registrarVoto("SIM")}
+              disabled={desabilitado}
+              loading={votando === "SIM"}
+            />
+            <VoteButton
+              opcao="NAO"
+              onClick={() => registrarVoto("NAO")}
+              disabled={desabilitado}
+              loading={votando === "NAO"}
+            />
+          </div>
+
+          {encerrada ? (
+            <Aviso
+              tone="erro"
+              icon={<Lock className="size-4" aria-hidden />}
+              titulo="Sessão encerrada"
+              descricao="O tempo limite foi atingido. Novos votos não são aceitos."
+            />
+          ) : feedback ? (
+            <Aviso
+              tone={feedback.tipo}
+              icon={
+                feedback.tipo === "sucesso" ? (
+                  <CheckCircle2 className="size-4" aria-hidden />
+                ) : (
+                  <AlertCircle className="size-4" aria-hidden />
+                )
+              }
+              titulo={feedback.tipo === "sucesso" ? "Voto confirmado" : "Voto rejeitado"}
+              descricao={feedback.mensagem}
+            />
+          ) : null}
         </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-4">
-          <VoteButton
-            opcao="SIM"
-            onClick={() => registrarVoto("SIM")}
-            disabled={desabilitado}
-            loading={votando === "SIM"}
-          />
-          <VoteButton
-            opcao="NAO"
-            onClick={() => registrarVoto("NAO")}
-            disabled={desabilitado}
-            loading={votando === "NAO"}
-          />
-        </div>
-
-        {encerrada ? (
-          <Aviso
-            tone="erro"
-            icon={<Lock className="size-5" aria-hidden />}
-            titulo="Sessão encerrada"
-            descricao="O tempo limite foi atingido. Não é mais possível registrar votos."
-          />
-        ) : feedback ? (
-          <Aviso
-            tone={feedback.tipo}
-            icon={
-              feedback.tipo === "sucesso" ? (
-                <CheckCircle2 className="size-5" aria-hidden />
-              ) : (
-                <AlertCircle className="size-5" aria-hidden />
-              )
-            }
-            titulo={feedback.tipo === "sucesso" ? "Voto confirmado" : "Voto rejeitado"}
-            descricao={feedback.mensagem}
-          />
-        ) : null}
       </section>
 
-      <section className="flex items-center justify-between rounded-2xl border border-dashed border-border px-5 py-4">
-        <span className="text-xs font-semibold tracking-wide text-muted-foreground">MODO DEMONSTRAÇÃO</span>
+      <div className="flex items-center justify-between rounded-2xl border border-dashed border-border/60 px-5 py-3.5">
+        <span className="text-xs font-semibold tracking-wider text-muted-foreground/50">
+          MODO DEMONSTRAÇÃO
+        </span>
         <button
           onClick={() => {
             reiniciar()
             setFeedback(null)
             setToken("")
           }}
-          className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
+          className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground underline-offset-4 hover:underline"
         >
           Reiniciar sessão
         </button>
-      </section>
+      </div>
     </div>
   )
 }
@@ -148,6 +173,7 @@ function VoteButton({
   loading: boolean
 }) {
   const isSim = opcao === "SIM"
+
   return (
     <button
       type="button"
@@ -155,17 +181,37 @@ function VoteButton({
       disabled={disabled}
       aria-label={`Votar ${isSim ? "SIM" : "NÃO"}`}
       className={cn(
-        "flex aspect-[4/3] flex-col items-center justify-center rounded-2xl text-center transition-all",
+        "group relative flex aspect-[3/2] flex-col items-center justify-center overflow-hidden rounded-2xl text-center transition-all duration-200",
         "focus-visible:outline-2 focus-visible:outline-offset-2",
-        "disabled:cursor-not-allowed disabled:opacity-55",
-        !disabled && "hover:scale-[1.02] active:scale-95",
+        "disabled:cursor-not-allowed disabled:opacity-40",
+        !disabled && "hover:scale-[1.02] active:scale-[0.97]",
         isSim
-          ? "bg-sim text-sim-foreground focus-visible:outline-sim"
-          : "bg-nao text-nao-foreground focus-visible:outline-nao",
+          ? [
+              "bg-blue-600 text-white",
+              "focus-visible:outline-blue-500",
+              "shadow-[0_4px_24px_hsl(220_80%_55%/0.35)]",
+              !disabled && "hover:bg-blue-500 hover:shadow-[0_8px_32px_hsl(220_80%_55%/0.45)]",
+            ]
+          : [
+              "bg-red-500 text-white",
+              "focus-visible:outline-red-400",
+              "shadow-[0_4px_24px_hsl(0_75%_55%/0.30)]",
+              !disabled && "hover:bg-red-400 hover:shadow-[0_8px_32px_hsl(0_75%_55%/0.40)]",
+            ],
       )}
     >
-      <span className="text-xs font-semibold tracking-widest opacity-80">VOTO</span>
-      <span className="text-4xl font-extrabold tracking-tight">{loading ? "..." : isSim ? "SIM" : "NÃO"}</span>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-50"
+        style={{
+          background: "linear-gradient(90deg, transparent, white 50%, transparent)",
+        }}
+      />
+
+      <span className="text-[10px] font-bold tracking-[0.2em] opacity-70">VOTO</span>
+      <span className="mt-0.5 text-4xl font-black tracking-tight">
+        {loading ? "·  ·  ·" : isSim ? "SIM" : "NÃO"}
+      </span>
     </button>
   )
 }
@@ -185,16 +231,23 @@ function Aviso({
     <div
       role={tone === "erro" ? "alert" : "status"}
       className={cn(
-        "mt-6 flex items-start gap-3 rounded-2xl border p-4",
+        "mt-5 flex items-start gap-3 rounded-2xl border p-4",
         tone === "erro"
-          ? "border-nao/30 bg-nao-soft text-card-foreground"
-          : "border-sim/30 bg-sim-soft text-card-foreground",
+          ? "border-red-500/20 bg-red-500/8 text-card-foreground"
+          : "border-blue-500/20 bg-blue-500/8 text-card-foreground",
       )}
     >
-      <span className={cn("mt-0.5 shrink-0", tone === "erro" ? "text-nao" : "text-sim")}>{icon}</span>
+      <span
+        className={cn(
+          "mt-0.5 shrink-0",
+          tone === "erro" ? "text-red-400" : "text-blue-400",
+        )}
+      >
+        {icon}
+      </span>
       <div>
-        <p className="font-semibold">{titulo}</p>
-        <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{descricao}</p>
+        <p className="text-sm font-semibold">{titulo}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{descricao}</p>
       </div>
     </div>
   )

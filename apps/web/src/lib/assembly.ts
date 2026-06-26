@@ -34,14 +34,23 @@ export interface CastVoteResult {
   mensagem?: string
 }
 
-export const SESSAO_ID = "ASSEMBLEIA-2026-06-25"
-export const DURACAO_SEGUNDOS = 120
+export const DURACAO_SEGUNDOS = 180
 
 /** Lista de tokens autorizados (em produção, isto vive no servidor). */
 export const TOKENS_AUTORIZADOS: string[] = Array.from(
   { length: 30 },
   (_, i) => `DELEGADO-${String(i + 1).padStart(3, "0")}`,
 )
+
+function gerarSessaoId(): string {
+  const hoje = new Date()
+  const ano = hoje.getFullYear()
+  const mes = String(hoje.getMonth() + 1).padStart(2, "0")
+  const dia = String(hoje.getDate()).padStart(2, "0")
+  return `ASSEMBLEIA-${ano}-${mes}-${dia}`
+}
+
+export const SESSAO_ID = gerarSessaoId()
 
 const STORAGE_KEY = "assembleia:sessao"
 const CHANNEL_NAME = "assembleia:broadcast"
@@ -57,7 +66,7 @@ function isBrowser() {
 
 function estadoInicial(): SessaoState {
   return {
-    sessao_id: SESSAO_ID,
+    sessao_id: gerarSessaoId(),
     placar_atual: { SIM: 0, NAO: 0 },
     tokens_que_ja_votaram: [],
     iniciada_em: Date.now(),
@@ -74,7 +83,16 @@ function lerEstado(): SessaoState {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(inicial))
       return inicial
     }
-    return JSON.parse(raw) as SessaoState
+
+    const salvo = JSON.parse(raw) as SessaoState
+
+    if (salvo.sessao_id !== gerarSessaoId()) {
+      const nova = estadoInicial()
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nova))
+      return nova
+    }
+
+    return salvo
   } catch {
     return estadoInicial()
   }
@@ -90,7 +108,6 @@ function getChannel(): BroadcastChannel | null {
   if (!channel) {
     channel = new BroadcastChannel(CHANNEL_NAME)
     channel.onmessage = (event: MessageEvent<SessaoState>) => {
-      // broadcast recebido de outra aba -> notifica os listeners locais
       notificarLocal(event.data)
     }
   }
