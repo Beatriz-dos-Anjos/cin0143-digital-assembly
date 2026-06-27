@@ -1,19 +1,82 @@
 "use client"
 
 import Link from "next/link"
+import { useState, useEffect, useRef } from "react"
 import { ArrowLeft, Clock, Wifi, WifiOff } from "lucide-react"
 import { percentual, totalVotos, type Opcao } from "@/src/lib/assembly"
 import { useAssembly } from "@/src/hooks/use-assembly"
 import { cn } from "@/src/lib/utils"
 
+const TIMER_KEY = "assembleia:timer_inicio";
+const DURACAO_SEGUNDOS = 180;
+
+function formatarTempo(segundos: number): string {
+  const m = Math.floor(segundos / 60);
+  const s = segundos % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function lerOuCriarInicio(): number {
+  try {
+    const salvo = localStorage.getItem(TIMER_KEY);
+    if (salvo) return Number(salvo);
+    const novo = Date.now();
+    localStorage.setItem(TIMER_KEY, String(novo));
+    return novo;
+  } catch {
+    return Date.now();
+  }
+}
+
+function useCronometro() {
+  const [segundosRestantes, setSegundosRestantes] = useState<number>(DURACAO_SEGUNDOS);
+  const inicioRef = useRef<number>(0);
+
+  useEffect(() => {
+    inicioRef.current = lerOuCriarInicio();
+
+    function calcRestantes() {
+      const decorrido = Math.floor((Date.now() - inicioRef.current) / 1000);
+      return Math.max(0, DURACAO_SEGUNDOS - decorrido);
+    }
+
+    setSegundosRestantes(calcRestantes());
+
+    const id = setInterval(() => {
+      const restantes = calcRestantes();
+      setSegundosRestantes(restantes);
+      if (restantes <= 0) clearInterval(id);
+    }, 1000);
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === TIMER_KEY) {
+        inicioRef.current = lerOuCriarInicio();
+        setSegundosRestantes(calcRestantes());
+      }
+    };
+    
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
+
+  return { segundosRestantes, encerrada: segundosRestantes <= 0 };
+}
+
 export function ResultsPanel() {
   const { state, connected } = useAssembly()
+  const { segundosRestantes, encerrada } = useCronometro()
 
   const placar = state?.placar_atual ?? { SIM: 0, NAO: 0 }
   const total = totalVotos(placar)
   const pctSim = percentual(placar.SIM, total)
   const pctNao = percentual(placar.NAO, total)
   const aoVivo = connected
+
+  const urgente = segundosRestantes > 0 && segundosRestantes < 30;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:py-16">
@@ -39,6 +102,20 @@ export function ResultsPanel() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
+          <div
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold tracking-wider tabular-nums font-mono transition-colors",
+              encerrada
+                ? "border-red-500/30 bg-red-500/10 text-red-400"
+                : urgente
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-400 animate-pulse"
+                  : "border-muted-foreground/30 bg-secondary text-muted-foreground",
+            )}
+          >
+            <Clock className={cn("size-3.5", urgente && "text-amber-400")} aria-hidden />
+            <span>{formatarTempo(segundosRestantes)}</span>
+          </div>
+
           <div
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold tracking-wider",
