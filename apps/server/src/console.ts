@@ -21,7 +21,7 @@ const BANNER = `
 const HELP = `
 Comandos disponíveis:
   LIST_TOKENS               - Listar todos os tokens válidos
-  LIST_VOTES                - Listar votos registrados
+  LIST_VOTES                F- Listar votos registrados
   PLACAR                    - Exibir placar atual
   SESSION                    - Listar dados completos da sessão ativa
   CLEAR                     - Limpar console
