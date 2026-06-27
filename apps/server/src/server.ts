@@ -7,6 +7,7 @@ import { Server } from "socket.io";
 import { z } from "zod";
 
 import { placarChannel, SOCKET_EVENTS } from "../src/domain/types";
+import { formatCastVote } from "../src/domain/vote-parser";
 import { processVote, getTokenStatus, getTokensAindaAptos } from "../src/domain/vote-validator";
 import {
   buildVoteContext,
@@ -164,6 +165,75 @@ app.post("/api/sessions", (req: Request, res: Response) => {
 });
 
 
+app.post("/api/sessions/:sessaoId/tokens/generate", (req: Request, res: Response) => {
+  try {
+    const sessaoId = paramAsString(req.params.sessaoId);
+    const sessao = sessionStore.get(sessaoId);
+
+    if (!sessao) {
+      res.status(404).json({ error: "Sessão não encontrada." });
+      return;
+    }
+
+    const newToken = tokenService.generateSecureToken();
+    sessionStore.addAuthorizedToken(sessaoId, newToken);
+    logTokenGenerated(newToken, sessaoId);
+
+    res.json({ token: newToken, sessao_id: sessaoId });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao gerar token" });
+  }
+});
+
+app.post("/api/sessions/:sessaoId/votes", (req: Request, res: Response) => {
+  try {
+    const sessaoId = paramAsString(req.params.sessaoId);
+    const sessao = sessionStore.get(sessaoId);
+
+    if (!sessao) {
+      res.status(404).json({ error: "Sessão não encontrada." });
+      return;
+    }
+
+    const { token, opcao } = req.body;
+    const payload = formatCastVote(token, opcao);
+    const context = {
+      sessao_id: sessaoId,
+      ip: req.ip ?? req.socket.remoteAddress ?? "desconhecido",
+    };
+    const result = processVote(sessao, payload, context);
+
+    if (!result.success) {
+      if (result.error.code === "FORMATO_INVALIDO") {
+        logInvalidFormat(payload, context);
+      } else if (result.error.code === "TOKEN_NAO_AUTORIZADO") {
+        const tokenStr = payload.split("|")[1] ?? "desconhecido";
+        logUnauthorizedVote(tokenStr, context, payload);
+      } else if (result.error.code === "VOTO_DUPLICADO" && result.duplicate) {
+        logDuplicateVote(result.duplicate, context, payload);
+      }
+
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    const channel = placarChannel(sessao.sessao_id);
+    io.to(sessao.sessao_id).emit(channel, result.placar);
+
+    logVoteAccepted(result, context);
+    logVoteSummary(sessao);
+
+    res.json({
+      success: true,
+      token: result.voto.token,
+      sessao_id: result.voto.sessao_id,
+      placar_atual: result.placar,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao registrar voto" });
+  }
+});
+
 app.post("/api/sessions/:sessaoId/tokens", (req: Request, res: Response) => {
   try {
     const { token } = req.body;
@@ -228,8 +298,7 @@ io.on("connection", (socket) => {
         });
         return;
       }
-      socketTokens.set(socket.id, requestedToken); 
-
+      socketTokens.set(socket.id, requestedToken);
 
       logClientAuthenticated(
         requestedToken,
