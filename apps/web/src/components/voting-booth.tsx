@@ -5,13 +5,67 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  Clock,
   KeyRound,
   Wifi,
   WifiOff,
 } from "lucide-react"
 import { type Opcao } from "@/src/lib/assembly"
+import { useState, useEffect, useRef } from "react";
 import { useVoter } from "@/src/hooks/use-voter"
 import { cn } from "@/src/lib/utils"
+
+const TIMER_KEY = "assembleia:timer_inicio";
+const DURACAO_SEGUNDOS = 180;
+
+function formatarTempo(segundos: number): string {
+  const m = Math.floor(segundos / 60);
+  const s = segundos % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function lerOuCriarInicio(): number {
+  try {
+    const salvo = localStorage.getItem(TIMER_KEY);
+    if (salvo) return Number(salvo);
+    const novo = Date.now();
+    localStorage.setItem(TIMER_KEY, String(novo));
+    return novo;
+  } catch {
+    return Date.now();
+  }
+}
+
+function useCronometro(resetKey: number) {
+  const [segundosRestantes, setSegundosRestantes] = useState<number>(DURACAO_SEGUNDOS);
+  const inicioRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (resetKey > 0) {
+      try { localStorage.removeItem(TIMER_KEY); } catch {}
+    }
+
+    inicioRef.current = lerOuCriarInicio();
+
+    function calcRestantes() {
+      const decorrido = Math.floor((Date.now() - inicioRef.current) / 1000);
+      return Math.max(0, DURACAO_SEGUNDOS - decorrido);
+    }
+
+    setSegundosRestantes(calcRestantes());
+
+    const id = setInterval(() => {
+      const restantes = calcRestantes();
+      setSegundosRestantes(restantes);
+      if (restantes <= 0) clearInterval(id);
+    }, 1000);
+
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+
+  return { segundosRestantes, encerrada: segundosRestantes <= 0 };
+}
 
 export function VotingBooth() {
   const {
@@ -25,9 +79,18 @@ export function VotingBooth() {
     gerarToken,
     registrarVoto,
   } = useVoter()
+  const [resetKey, setResetKey] = useState(0);
+  const { segundosRestantes, encerrada } = useCronometro(resetKey);
 
-  const desabilitadoVoto = !connected || gerandoToken || !token || votando !== null
-  const desabilitadoGerar = !connected || gerandoToken || votando !== null
+  const desabilitadoVoto =
+    encerrada || !connected || gerandoToken || !token || votando !== null;
+  const desabilitadoGerar =
+    encerrada || !connected || gerandoToken || votando !== null;
+
+  function handleReiniciar() {
+    setResetKey((k) => k + 1); 
+    setToken("");
+  }
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-10 sm:py-16">
@@ -52,10 +115,22 @@ export function VotingBooth() {
         <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between gap-4">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1 font-mono text-xs font-semibold tracking-wider text-secondary-foreground">
-              {sessaoId || "assembleia"}
+              {sessaoId ?? "ASSEMBLEIA"}
             </span>
 
-            <ConnectionBadge connected={connected} />
+          <div className="flex items-center gap-3">
+              <div
+                className={cn(
+                  "inline-flex items-center gap-1.5 font-mono text-sm font-bold tabular-nums",
+                  encerrada ? "text-red-400" : "text-muted-foreground",
+                )}
+              >
+                <Clock className="size-3.5" aria-hidden />
+                <span>{formatarTempo(segundosRestantes)}</span>
+              </div>
+
+              <ConnectionBadge connected={connected} />
+            </div> 
           </div>
 
           <h1 className="mt-6 text-3xl font-black tracking-tight text-card-foreground">
@@ -87,12 +162,8 @@ export function VotingBooth() {
               id="token"
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              disabled={gerandoToken || votando !== null}
-              placeholder={
-                gerandoToken
-                  ? "Gerando token…"
-                  : "Gere ou cole seu token aqui"
-              }
+              disabled={encerrada || gerandoToken || votando !== null}
+              placeholder={gerandoToken ? "Gerando token…" : "Gere ou cole seu token aqui"}
               autoComplete="off"
               spellCheck={false}
               className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-mono text-sm tracking-widest outline-none transition-all placeholder:text-muted-foreground/50 focus-visible:border-foreground/30 focus-visible:ring-2 focus-visible:ring-foreground/10 disabled:cursor-not-allowed disabled:opacity-40"
@@ -130,6 +201,17 @@ export function VotingBooth() {
           ) : null}
         </div>
       </section>
+      <div className="flex items-center justify-between rounded-2xl border border-dashed border-border/60 px-5 py-3.5">
+        <span className="text-xs font-semibold tracking-wider text-muted-foreground/50">
+          MODO DEMONSTRAÇÃO
+        </span>
+        <button
+          onClick={handleReiniciar}
+          className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground underline-offset-4 hover:underline"
+        >
+          Reiniciar sessao
+        </button>
+      </div>
     </div>
   )
 }

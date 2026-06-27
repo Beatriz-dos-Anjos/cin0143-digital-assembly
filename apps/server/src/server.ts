@@ -7,6 +7,7 @@ import { Server } from "socket.io";
 import { z } from "zod";
 
 import { placarChannel, SOCKET_EVENTS } from "../src/domain/types";
+import withSessionLock from "../src/domain/lock.service";
 import { formatCastVote } from "../src/domain/vote-parser";
 import { processVote, getTokenStatus, getTokensAindaAptos } from "../src/domain/vote-validator";
 import {
@@ -185,7 +186,7 @@ app.post("/api/sessions/:sessaoId/tokens/generate", (req: Request, res: Response
   }
 });
 
-app.post("/api/sessions/:sessaoId/votes", (req: Request, res: Response) => {
+app.post("/api/sessions/:sessaoId/votes", async (req: Request, res: Response) => {
   try {
     const sessaoId = paramAsString(req.params.sessaoId);
     const sessao = sessionStore.get(sessaoId);
@@ -201,7 +202,7 @@ app.post("/api/sessions/:sessaoId/votes", (req: Request, res: Response) => {
       sessao_id: sessaoId,
       ip: req.ip ?? req.socket.remoteAddress ?? "desconhecido",
     };
-    const result = processVote(sessao, payload, context);
+    const result = await withSessionLock(sessaoId, () => processVote(sessao, payload, context));
 
     if (!result.success) {
       if (result.error.code === "FORMATO_INVALIDO") {
@@ -337,10 +338,12 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on(SOCKET_EVENTS.CAST_VOTE, (payload: unknown) => {
+  socket.on(SOCKET_EVENTS.CAST_VOTE, async(payload: unknown) => {
     const payloadStr = typeof payload === "string" ? payload : String(payload);
     const context = buildVoteContext(sessao, socket, socketTokens.get(socket.id));
-    const result = processVote(sessao, payloadStr, context);
+    const result = await withSessionLock(sessao.sessao_id, () =>
+      processVote(sessao, payloadStr, context)
+    );
 
     if (!result.success) {
       if (result.error.code === "FORMATO_INVALIDO") {

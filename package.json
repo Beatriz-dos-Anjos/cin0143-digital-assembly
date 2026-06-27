@@ -26,6 +26,8 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
+    "async-lock": "^1.4.1",
     "express-rate-limit": "^8.5.2"
   }
 }
