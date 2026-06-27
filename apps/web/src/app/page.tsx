@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { BarChart3, Vote } from "lucide-react"
+import { BarChart3, Vote, Terminal } from "lucide-react"
 
 export default function HomePage() {
   return (
@@ -94,6 +94,35 @@ export default function HomePage() {
 
           <div className="mt-5 flex items-center gap-1.5 text-xs font-semibold tracking-wider text-red-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
             ACOMPANHAR <span aria-hidden>→</span>
+          </div>
+        </Link>
+
+        <Link
+          href="/comandos"
+          className="group relative overflow-hidden rounded-3xl border border-border bg-card p-7 transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-[0_8px_32px_hsl(160_70%_45%/0.10)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:col-span-2"
+        >
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            style={{
+              background:
+                "radial-gradient(ellipse 80% 60% at 50% 50%, hsl(160 70% 45% / 0.07) 0%, transparent 70%)",
+            }}
+          />
+
+          <span className="flex size-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20">
+            <Terminal className="size-5" strokeWidth={1.5} aria-hidden />
+          </span>
+
+          <h2 className="mt-5 text-xl font-bold tracking-tight text-card-foreground">
+            Comandos gerenciais
+          </h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            Consulte tokens, votos e o estado da sessão — os mesmos dados do console de autenticação.
+          </p>
+
+          <div className="mt-5 flex items-center gap-1.5 text-xs font-semibold tracking-wider text-emerald-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            ABRIR PAINEL <span aria-hidden>→</span>
           </div>
         </Link>
       </div>
