@@ -7,7 +7,7 @@ const OPCAO = process.env.VOTE_OPCAO ?? "sim";
 // Use VOTE_TOKEN from environment if provided, otherwise generate a random unique token
 let token = process.env.VOTE_TOKEN;
 if (!token) {
-    token = `TK_CLIENT_TEST_${(0, crypto_1.randomUUID)().slice(0, 8).toUpperCase()}`;
+    token = `TK_CLIENT_TEST_${(0, crypto_1.randomUUID)().replace(/-/g, "").toUpperCase()}`;
 }
 const socket = (0, socket_io_client_1.io)(SERVER_URL);
 socket.on("connect", () => {

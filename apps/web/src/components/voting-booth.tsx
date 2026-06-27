@@ -1,9 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-import { AlertCircle, ArrowLeft, CheckCircle2, Lock, Clock } from "lucide-react"
-import { castVote, type CastVoteResult, type Opcao } from "@/src/lib/assembly"
+import { useEffect, useState } from "react"
+import { AlertCircle, ArrowLeft, CheckCircle2, Lock, Clock, KeyRound } from "lucide-react"
+import { castVote, type CastVoteResult, type Opcao, TOKENS_AUTORIZADOS } from "@/src/lib/assembly"
 import { formatarTempo, useAssembly } from "@/src/hooks/use-assembly"
 import { Countdown, SessionChip } from "@/src/components/assembly-chips"
 import { cn } from "@/src/lib/utils"
@@ -18,6 +18,19 @@ export function VotingBooth() {
   const [token, setToken] = useState("")
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [votando, setVotando] = useState<Opcao | null>(null)
+  const [tokensList, setTokensList] = useState<string[]>([])
+
+  useEffect(() => {
+    setTokensList([...TOKENS_AUTORIZADOS])
+  }, [state])
+
+  function gerarNovoToken() {
+    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase()
+    const novoToken = `TOKEN-${randomPart}`
+    TOKENS_AUTORIZADOS.push(novoToken)
+    setTokensList([...TOKENS_AUTORIZADOS])
+    setToken(novoToken)
+  }
 
   const sessaoId = state?.sessao_id ?? "ASSEMBLEIA"
   const desabilitado = encerrada || votando !== null
@@ -142,6 +155,57 @@ export function VotingBooth() {
         </div>
       </section>
 
+      <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <h2 className="text-sm font-bold text-card-foreground flex items-center gap-1.5">
+          <KeyRound className="size-4 text-blue-500" aria-hidden />
+          Tokens Autorizados
+        </h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          Lista de tokens válidos simulados no backend. Clique em um token disponível para carregá-lo na cabine de votação ou gere um novo.
+        </p>
+
+        <button
+          type="button"
+          disabled={encerrada}
+          onClick={gerarNovoToken}
+          className={cn(
+            "mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2.5 text-xs font-semibold text-secondary-foreground transition-all",
+            "hover:bg-secondary/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/30",
+            "disabled:cursor-not-allowed disabled:opacity-40",
+          )}
+        >
+          <KeyRound className="size-3.5" aria-hidden />
+          Gerar Novo Token Válido
+        </button>
+
+        <div className="mt-4 max-h-36 overflow-y-auto rounded-xl border border-border bg-background p-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {tokensList.map((t) => {
+              const jaVotou = state?.tokens_que_ja_votaram.includes(t)
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={encerrada || jaVotou}
+                  onClick={() => setToken(t)}
+                  className={cn(
+                    "rounded-lg border px-2 py-1.5 font-mono text-[10px] font-semibold transition-all text-center",
+                    jaVotou
+                      ? "border-red-500/15 bg-red-500/5 text-red-400 cursor-not-allowed opacity-50"
+                      : t === token
+                        ? "border-blue-500 bg-blue-500/10 text-blue-500"
+                        : "border-border hover:border-foreground/20 text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {t}
+                  {jaVotou && " (votou)"}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
       <div className="flex items-center justify-between rounded-2xl border border-dashed border-border/60 px-5 py-3.5">
         <span className="text-xs font-semibold tracking-wider text-muted-foreground/50">
           MODO DEMONSTRAÇÃO
@@ -181,7 +245,7 @@ function VoteButton({
       disabled={disabled}
       aria-label={`Votar ${isSim ? "SIM" : "NÃO"}`}
       className={cn(
-        "group relative flex aspect-[3/2] flex-col items-center justify-center overflow-hidden rounded-2xl text-center transition-all duration-200",
+        "group relative flex aspect-3/2 flex-col items-center justify-center overflow-hidden rounded-2xl text-center transition-all duration-200",
         "focus-visible:outline-2 focus-visible:outline-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-40",
         !disabled && "hover:scale-[1.02] active:scale-[0.97]",
