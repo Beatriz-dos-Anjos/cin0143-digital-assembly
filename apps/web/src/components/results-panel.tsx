@@ -1,18 +1,19 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, Clock, Radio } from "lucide-react"
+import { ArrowLeft, Clock, Wifi, WifiOff } from "lucide-react"
 import { percentual, totalVotos, type Opcao } from "@/src/lib/assembly"
-import { formatarTempo, useAssembly } from "@/src/hooks/use-assembly"
+import { useAssembly } from "@/src/hooks/use-assembly"
 import { cn } from "@/src/lib/utils"
 
 export function ResultsPanel() {
-  const { state, segundosRestantes, encerrada } = useAssembly()
+  const { state, connected } = useAssembly()
 
   const placar = state?.placar_atual ?? { SIM: 0, NAO: 0 }
   const total = totalVotos(placar)
   const pctSim = percentual(placar.SIM, total)
   const pctNao = percentual(placar.NAO, total)
+  const aoVivo = connected
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:py-16">
@@ -27,13 +28,13 @@ export function ResultsPanel() {
       <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="inline-flex items-center rounded-full border border-border bg-secondary px-3 py-1 font-mono text-xs font-semibold tracking-wider text-secondary-foreground">
-            {state?.sessao_id ?? "ASSEMBLEIA"}
+            {state?.sessao_id ?? "assembleia"}
           </span>
           <h1 className="mt-3 text-4xl font-black tracking-tight text-balance">
             Apuração em tempo real
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Painel público atualizado a cada voto registrado.
+            Painel público sincronizado com o servidor de votação.
           </p>
         </div>
 
@@ -41,14 +42,12 @@ export function ResultsPanel() {
           <div
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold tracking-wider",
-              encerrada
-                ? "border-border bg-secondary text-muted-foreground"
-                : "border-blue-500/30 bg-blue-500/10 text-blue-400",
+              aoVivo
+                ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
+                : "border-border bg-secondary text-muted-foreground",
             )}
           >
-            {encerrada ? (
-              "ENCERRADO"
-            ) : (
+            {aoVivo ? (
               <>
                 <span className="relative flex size-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
@@ -56,17 +55,21 @@ export function ResultsPanel() {
                 </span>
                 AO VIVO
               </>
+            ) : (
+              <>
+                <WifiOff className="size-3.5" aria-hidden />
+                DESCONECTADO
+              </>
             )}
           </div>
 
-          <div
-            className={cn(
-              "inline-flex items-center gap-1.5 font-mono text-sm font-bold tabular-nums",
-              encerrada ? "text-red-400" : "text-foreground",
+          <div className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-muted-foreground">
+            {aoVivo ? (
+              <Wifi className="size-3.5 text-blue-400" aria-hidden />
+            ) : (
+              <Clock className="size-3.5" aria-hidden />
             )}
-          >
-            <Clock className="size-3.5" aria-hidden />
-            {formatarTempo(segundosRestantes)}
+            {aoVivo ? "servidor" : "aguardando…"}
           </div>
         </div>
       </header>

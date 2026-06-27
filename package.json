@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "npm run dev --workspace=apps/server",
     "dev:server": "npm run dev --workspace=apps/server",
+    "dev:web": "npm run dev --workspace=apps/web",
     "client": "tsx client.ts",
     "build": "npm run build --workspace=apps/server",
     "start": "npm run start --workspace=apps/server",
@@ -25,6 +26,8 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
+    "async-lock": "^1.4.1",
     "express-rate-limit": "^8.5.2"
   }
 }
