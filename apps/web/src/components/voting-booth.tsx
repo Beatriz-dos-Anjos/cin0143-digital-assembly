@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlertCircle,
   ArrowLeft,
@@ -11,8 +11,11 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react"
+import { ToastContainer, toast } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 import { type Opcao } from "@/src/lib/assembly"
 import { useVoter } from "@/src/hooks/use-voter"
+import { useAssembly } from "@/src/hooks/use-assembly"
 import { useCronometro, syncSessionTimer } from "@/src/hooks/use-cronometro"
 import {
   ApiRequestError,
@@ -50,13 +53,44 @@ export function VotingBooth() {
     limparEstado,
     mostrarErro,
   } = useVoter()
-  const [reiniciando, setReiniciando] = useState(false)
-  const { segundosRestantes, encerrada } = useCronometro(
-    sessaoId || DEFAULT_SESSAO_ID,
-  )
+
+  const { state } = useAssembly()
+
+  const [resetKey, setResetKey] = useState(0)
+  const { segundosRestantes, encerrada } = useCronometro(resetKey)
 
   const [tokensList, setTokensList] = useState<string[]>(TOKENS_AUTORIZADOS_INICIAIS)
   const [tokensVotados, setTokensVotados] = useState<string[]>([])
+  const [reiniciando, setReiniciando] = useState(false)
+
+  // Toast ao mudar placar (mesmo mecanismo do painel)
+  const placarAnteriorRef = useRef({ SIM: 0, NAO: 0 })
+  const primeiroRenderRef = useRef(true)
+  const placar = state?.placar_atual ?? { SIM: 0, NAO: 0 }
+
+  useEffect(() => {
+    if (primeiroRenderRef.current) {
+      primeiroRenderRef.current = false
+      placarAnteriorRef.current = { ...placar }
+      return
+    }
+
+    const anterior = placarAnteriorRef.current
+
+    if (placar.SIM > anterior.SIM) {
+      toast.success("Novo voto SIM registrado", { autoClose: 4000 })
+    } else if (placar.NAO > anterior.NAO) {
+      toast.error("Novo voto NÃO registrado", { autoClose: 4000 })
+    }
+
+    placarAnteriorRef.current = { ...placar }
+  }, [placar.SIM, placar.NAO])
+
+  useEffect(() => {
+    if (token && !tokensList.includes(token)) {
+      setTokensList((prev) => [...prev, token])
+    }
+  }, [token, tokensList])
 
   function adicionarTokenGerado(novoToken: string) {
     setTokensList((prev) =>
@@ -113,10 +147,12 @@ export function VotingBooth() {
     limparEstado()
     setTokensVotados([])
     setTokensList([...TOKENS_AUTORIZADOS_INICIAIS])
+    setToken("")
     setReiniciando(true)
 
     try {
       const result = await resetSession(sessaoId || DEFAULT_SESSAO_ID)
+      setResetKey((k) => k + 1)
       syncSessionTimer({
         iniciada_em: result.iniciada_em,
         duracao_segundos: result.duracao_segundos,
@@ -135,6 +171,15 @@ export function VotingBooth() {
 
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-10 sm:py-16">
+      <ToastContainer
+        position="top-right"
+        theme="dark"
+        pauseOnHover
+        closeOnClick
+        newestOnTop
+        style={{ zIndex: 9999 }}
+      />
+
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -171,7 +216,7 @@ export function VotingBooth() {
               </div>
 
               <ConnectionBadge connected={connected} />
-            </div> 
+            </div>
           </div>
 
           <h1 className="mt-6 text-3xl font-black tracking-tight text-card-foreground">

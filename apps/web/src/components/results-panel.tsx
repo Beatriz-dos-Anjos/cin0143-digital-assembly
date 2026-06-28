@@ -1,13 +1,17 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, Clock, Wifi, WifiOff } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { ArrowLeft, Clock, WifiOff } from "lucide-react"
+import { ToastContainer, toast } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
 import { percentual, totalVotos, type Opcao } from "@/src/lib/assembly"
 import { useAssembly } from "@/src/hooks/use-assembly"
 import { useCronometro } from "@/src/hooks/use-cronometro"
 import { formatarTempo } from "@/src/lib/timer"
 import { cn } from "@/src/lib/utils"
 
+// ─── Componente principal ─────────────────────────────────────────────────────
 export function ResultsPanel() {
   const { state, connected } = useAssembly()
   const { segundosRestantes, encerrada } = useCronometro()
@@ -17,11 +21,42 @@ export function ResultsPanel() {
   const pctSim = percentual(placar.SIM, total)
   const pctNao = percentual(placar.NAO, total)
   const aoVivo = connected
+  const urgente = segundosRestantes > 0 && segundosRestantes < 30
 
-  const urgente = segundosRestantes > 0 && segundosRestantes < 30;
+  // Detecta mudança no placar e dispara toast
+  const placarAnteriorRef = useRef({ SIM: 0, NAO: 0 })
+  const primeiroRenderRef = useRef(true)
+
+  useEffect(() => {
+    // Ignora o primeiro render (estado inicial zerado)
+    if (primeiroRenderRef.current) {
+      primeiroRenderRef.current = false
+      placarAnteriorRef.current = { ...placar }
+      return
+    }
+
+    const anterior = placarAnteriorRef.current
+
+    if (placar.SIM > anterior.SIM) {
+      toast.success("Novo voto SIM registrado", { autoClose: 4000 })
+    } else if (placar.NAO > anterior.NAO) {
+      toast.error("Novo voto NÃO registrado", { autoClose: 4000 })
+    }
+
+    placarAnteriorRef.current = { ...placar }
+  }, [placar.SIM, placar.NAO])
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:py-16">
+      <ToastContainer
+        position="top-right"
+        theme="dark"
+        pauseOnHover
+        closeOnClick
+        newestOnTop
+        style={{ zIndex: 9999 }}
+      />
+
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -80,15 +115,6 @@ export function ResultsPanel() {
                 DESCONECTADO
               </>
             )}
-          </div>
-
-          <div className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-muted-foreground">
-            {aoVivo ? (
-              <Wifi className="size-3.5 text-blue-400" aria-hidden />
-            ) : (
-              <Clock className="size-3.5" aria-hidden />
-            )}
-            {aoVivo ? "servidor" : "aguardando…"}
           </div>
         </div>
       </header>
@@ -164,28 +190,19 @@ function ScoreCard({
     <div
       className={cn(
         "relative overflow-hidden rounded-3xl border p-6 sm:p-8",
-        isSim
-          ? "border-blue-500/20 bg-blue-500/6"
-          : "border-red-500/20 bg-red-500/6",
+        isSim ? "border-blue-500/20 bg-blue-500/6" : "border-red-500/20 bg-red-500/6",
       )}
     >
       <div
         aria-hidden
         className="pointer-events-none absolute right-0 top-0 size-32 -translate-y-1/2 translate-x-1/2 rounded-full blur-2xl"
         style={{
-          background: isSim
-            ? "hsl(220 80% 60% / 0.12)"
-            : "hsl(0 75% 55% / 0.10)",
+          background: isSim ? "hsl(220 80% 60% / 0.12)" : "hsl(0 75% 55% / 0.10)",
         }}
       />
 
       <div className="flex items-center justify-between">
-        <span
-          className={cn(
-            "text-xs font-bold tracking-[0.18em]",
-            isSim ? "text-blue-400" : "text-red-400",
-          )}
-        >
+        <span className={cn("text-xs font-bold tracking-[0.18em]", isSim ? "text-blue-400" : "text-red-400")}>
           {isSim ? "SIM" : "NÃO"}
         </span>
         <span className="font-mono text-xs font-semibold text-muted-foreground">
@@ -193,21 +210,13 @@ function ScoreCard({
         </span>
       </div>
 
-      <p
-        className={cn(
-          "mt-3 text-7xl font-black tabular-nums tracking-tight transition-all duration-300",
-          isSim ? "text-blue-500" : "text-red-500",
-        )}
-      >
+      <p className={cn("mt-3 text-7xl font-black tabular-nums tracking-tight transition-all duration-300", isSim ? "text-blue-500" : "text-red-500")}>
         {valor}
       </p>
 
       <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-card/60">
         <div
-          className={cn(
-            "h-full transition-all duration-700 ease-out",
-            isSim ? "bg-blue-500" : "bg-red-500",
-          )}
+          className={cn("h-full transition-all duration-700 ease-out", isSim ? "bg-blue-500" : "bg-red-500")}
           style={{ width: `${pct}%` }}
         />
       </div>
