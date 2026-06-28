@@ -88,11 +88,6 @@ export function VotingBooth() {
     previousScoreRef.current = { ...score }
   }, [score.sim, score.nao, state])
 
-  useEffect(() => {
-    if (token && !tokensList.includes(token)) {
-      setTokensList((prev) => [...prev, token])
-    }
-  }, [token, tokensList])
 
   function addGeneratedToken(newToken: string) {
     setTokensList((prev) =>
