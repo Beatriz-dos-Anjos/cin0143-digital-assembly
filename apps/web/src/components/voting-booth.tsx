@@ -319,6 +319,7 @@ export function VotingBooth() {
                   type="button"
                   disabled={ended}
                   onClick={() => setToken(t)}
+                  title={t}
                   className={cn(
                     "rounded-lg border px-2 py-1.5 font-mono text-[10px] font-semibold transition-all text-center",
                     selected
@@ -330,7 +331,7 @@ export function VotingBooth() {
                         : "border-border hover:border-foreground/20 text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {t}
+                  {t.length > 16 ? `${t.substring(0, 8)}...${t.substring(t.length - 6)}` : t}
                   {hasVoted && " (voted)"}
                 </button>
               )
