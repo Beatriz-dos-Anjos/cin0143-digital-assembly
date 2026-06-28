@@ -1,4 +1,3 @@
-
 import { CAST_VOTE_PREFIX, ParsedCastVote, VALID_OPTIONS, VoteOption } from "./types";
 
 const CAST_VOTE_PATTERN = /^CAST_VOTE\|([^|]+)\|(sim|nao)$/;
@@ -22,17 +21,17 @@ export function parseCastVote(payload: unknown): ParsedCastVote | null {
     return null;
   }
 
-  const [, token, opcao] = match;
+  const [, token, option] = match;
 
   if (!token || !isValidTokenLength(token)) {
     return null;
   }
 
-  if (!isValidOption(opcao)) {
+  if (!isValidOption(option)) {
     return null;
   }
 
-  return { token: token.trim(), opcao };
+  return { token: token.trim(), option };
 }
 
 export function isValidOption(value: unknown): value is VoteOption {
@@ -42,11 +41,11 @@ export function isValidOption(value: unknown): value is VoteOption {
   );
 }
 
-export function formatCastVote(token: string, opcao: VoteOption): string {
-  if (!isValidTokenLength(token) || !isValidOption(opcao)) {
-    throw new Error("Token ou opção inválidos para formatação");
+export function formatCastVote(token: string, option: VoteOption): string {
+  if (!isValidTokenLength(token) || !isValidOption(option)) {
+    throw new Error("Invalid token or option for formatting");
   }
-  return `${CAST_VOTE_PREFIX}|${token}|${opcao}`;
+  return `${CAST_VOTE_PREFIX}|${token}|${option}`;
 }
 
 export function isCastVoteFormat(payload: unknown): boolean {
@@ -60,5 +59,5 @@ export function extractTokenFromPayload(payload: unknown): string | null {
 
 export function extractOptionFromPayload(payload: unknown): VoteOption | null {
   const parsed = parseCastVote(payload);
-  return parsed?.opcao ?? null;
+  return parsed?.option ?? null;
 }

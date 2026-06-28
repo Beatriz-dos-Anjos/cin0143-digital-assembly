@@ -1,6 +1,4 @@
-
-
-import { SessaoVotacao, VotoRegistrado, PlacarAtual } from "../domain/types";
+import { VotingSession, RegisteredVote, CurrentScore } from "../domain/types";
 import { logger } from "../loggers/logger";
 import { formatTimestamp } from "../loggers/logger";
 
@@ -17,27 +15,26 @@ export const STATIC_TOKENS = [
   "f47ac10b-58cc-4372-a567-0e02b2c3d479",
 ] as const;
 
-//Criação inicial
-function createEmptyPlacar(): PlacarAtual {
+function createEmptyScore(): CurrentScore {
   return { sim: 0, nao: 0 };
 }
 
-function createDefaultSession(): SessaoVotacao {
+function createDefaultSession(): VotingSession {
   const now = Date.now();
   return {
-    sessao_id:  "assembleia-2026-06",
-    placar_atual: createEmptyPlacar(),
-    tokens_autorizados: [...STATIC_TOKENS],
-    tokens_que_ja_votaram: [],
-    votos_realizados: [],
-    criada_em: formatTimestamp(new Date(now)),
-    iniciada_em: now,
+    session_id: "assembleia-2026-06",
+    current_score: createEmptyScore(),
+    authorized_tokens: [...STATIC_TOKENS],
+    voted_tokens: [],
+    votes_cast: [],
+    created_at: formatTimestamp(new Date(now)),
+    started_at: now,
   };
 }
 
 export class SessionRepository {
   
-  private sessions = new Map<string, SessaoVotacao>();
+  private sessions = new Map<string, VotingSession>();
 
   constructor() {
     this.initializeDefaultSession();
@@ -45,155 +42,145 @@ export class SessionRepository {
 
   private initializeDefaultSession(): void {
     const defaultSession = createDefaultSession();
-    this.sessions.set(defaultSession.sessao_id, defaultSession);
+    this.sessions.set(defaultSession.session_id, defaultSession);
 
-    logger.info("SESSION_STORE", "Sessão padrão inicializada", {
-      sessao_id: defaultSession.sessao_id,
-      total_tokens: defaultSession.tokens_autorizados.length,
+    logger.info("SESSION_STORE", "Default session initialized", {
+      session_id: defaultSession.session_id,
+      total_tokens: defaultSession.authorized_tokens.length,
     });
   }
 
-
-  get(sessaoId: string): SessaoVotacao | undefined {
-    return this.sessions.get(sessaoId);
+  get(sessionId: string): VotingSession | undefined {
+    return this.sessions.get(sessionId);
   }
 
-
-  getDefault(): SessaoVotacao {
+  getDefault(): VotingSession {
     const defaultId = process.env.DEFAULT_SESSION_ID || "assembleia-2026-06";
-    let sessao = this.sessions.get(defaultId);
+    let session = this.sessions.get(defaultId);
 
-    if (!sessao) {
-      sessao = createDefaultSession();
-      this.sessions.set(sessao.sessao_id, sessao);
+    if (!session) {
+      session = createDefaultSession();
+      this.sessions.set(session.session_id, session);
     }
 
-    return sessao;
+    return session;
   }
-
   
-  create(sessao: SessaoVotacao): void {
-    if (this.sessions.has(sessao.sessao_id)) {
-      throw new Error(`Sessão ${sessao.sessao_id} já existe`);
+  create(session: VotingSession): void {
+    if (this.sessions.has(session.session_id)) {
+      throw new Error(`Session ${session.session_id} already exists`);
     }
 
-    this.sessions.set(sessao.sessao_id, sessao);
+    this.sessions.set(session.session_id, session);
 
-    logger.success("SESSION_STORE", "Nova sessão criada", {
-      sessao_id: sessao.sessao_id,
-      total_tokens: sessao.tokens_autorizados.length,
+    logger.success("SESSION_STORE", "New session created", {
+      session_id: session.session_id,
+      total_tokens: session.authorized_tokens.length,
     });
   }
-
 
   createFromPayload(payload: {
     session_id: string;
-    tokens_autorizados: string[];
-    opcoes?: string[];
-  }): SessaoVotacao {
+    authorized_tokens: string[];
+    options?: string[];
+  }): VotingSession {
     if (this.sessions.has(payload.session_id)) {
-      throw new Error(`Sessão ${payload.session_id} já existe`);
+      throw new Error(`Session ${payload.session_id} already exists`);
     }
 
     const now = Date.now();
-    const sessao: SessaoVotacao = {
-      sessao_id: payload.session_id,
-      placar_atual: createEmptyPlacar(),
-      tokens_autorizados: [...payload.tokens_autorizados],
-      tokens_que_ja_votaram: [],
-      votos_realizados: [],
-      criada_em: formatTimestamp(new Date(now)),
-      iniciada_em: now,
+    const session: VotingSession = {
+      session_id: payload.session_id,
+      current_score: createEmptyScore(),
+      authorized_tokens: [...payload.authorized_tokens],
+      voted_tokens: [],
+      votes_cast: [],
+      created_at: formatTimestamp(new Date(now)),
+      started_at: now,
     };
 
-    this.sessions.set(sessao.sessao_id, sessao);
-    return sessao;
+    this.sessions.set(session.session_id, session);
+    return session;
   }
 
+  addAuthorizedToken(sessionId: string, token: string): VotingSession | undefined {
+    const session = this.sessions.get(sessionId);
 
-  addAuthorizedToken(sessaoId: string, token: string): SessaoVotacao | undefined {
-    const sessao = this.sessions.get(sessaoId);
-
-    if (!sessao) {
+    if (!session) {
       return undefined;
     }
 
-    if (!sessao.tokens_autorizados.includes(token)) {
-      sessao.tokens_autorizados.push(token);
+    if (!session.authorized_tokens.includes(token)) {
+      session.authorized_tokens.push(token);
     }
 
-    return sessao;
+    return session;
   }
 
+  removeToken(sessionId: string, token: string): VotingSession | undefined {
+    const session = this.sessions.get(sessionId);
 
-  removeToken(sessaoId: string, token: string): SessaoVotacao | undefined {
-    const sessao = this.sessions.get(sessaoId);
-
-    if (!sessao) {
+    if (!session) {
       return undefined;
     }
 
-    const index = sessao.tokens_autorizados.indexOf(token);
+    const index = session.authorized_tokens.indexOf(token);
     if (index > -1) {
-      sessao.tokens_autorizados.splice(index, 1);
+      session.authorized_tokens.splice(index, 1);
     }
 
-    return sessao;
+    return session;
   }
 
-
-  findVoteByToken(sessao: SessaoVotacao, token: string): VotoRegistrado | undefined {
-    return sessao.votos_realizados.find((voto) => voto.token === token);
+  findVoteByToken(session: VotingSession, token: string): RegisteredVote | undefined {
+    return session.votes_cast.find((vote) => vote.token === token);
   }
 
-
-  list(): SessaoVotacao[] {
+  list(): VotingSession[] {
     return Array.from(this.sessions.values());
   }
 
-  listFiltered(predicate: (sessao: SessaoVotacao) => boolean): SessaoVotacao[] {
+  listFiltered(predicate: (session: VotingSession) => boolean): VotingSession[] {
     return Array.from(this.sessions.values()).filter(predicate);
   }
 
-
   getGlobalStatistics() {
     const sessions = this.list();
-    const totalVotos = sessions.reduce((acc, s) => acc + s.votos_realizados.length, 0);
-    const totalSim = sessions.reduce((acc, s) => acc + s.placar_atual.sim, 0);
-    const totalNao = sessions.reduce((acc, s) => acc + s.placar_atual.nao, 0);
+    const totalVotes = sessions.reduce((acc, s) => acc + s.votes_cast.length, 0);
+    const totalsim = sessions.reduce((acc, s) => acc + s.current_score.sim, 0);
+    const totalNao = sessions.reduce((acc, s) => acc + s.current_score.nao, 0);
 
     return {
-      total_sessoes: sessions.length,
-      total_votos: totalVotos,
-      total_sim: totalSim,
+      total_sessions: sessions.length,
+      total_votes: totalVotes,
+      total_sim: totalsim,
       total_nao: totalNao,
-      total_tokens: sessions.reduce((acc, s) => acc + s.tokens_autorizados.length, 0),
+      total_tokens: sessions.reduce((acc, s) => acc + s.authorized_tokens.length, 0),
     };
   }
 
-  reset(sessaoId: string): SessaoVotacao | undefined {
-    const sessao = this.sessions.get(sessaoId);
+  reset(sessionId: string): VotingSession | undefined {
+    const session = this.sessions.get(sessionId);
 
-    if (!sessao) {
+    if (!session) {
       return undefined;
     }
 
     const now = Date.now();
-    sessao.placar_atual = createEmptyPlacar();
-    sessao.tokens_autorizados = [...STATIC_TOKENS];
-    sessao.tokens_que_ja_votaram = [];
-    sessao.votos_realizados = [];
-    sessao.iniciada_em = now;
+    session.current_score = createEmptyScore();
+    session.authorized_tokens = [...STATIC_TOKENS];
+    session.voted_tokens = [];
+    session.votes_cast = [];
+    session.started_at = now;
 
-    logger.info("SESSION_STORE", "Sessão reiniciada", {
-      sessao_id: sessao.sessao_id,
-      total_tokens: sessao.tokens_autorizados.length,
+    logger.info("SESSION_STORE", "Session restarted", {
+      session_id: session.session_id,
+      total_tokens: session.authorized_tokens.length,
     });
 
-    return sessao;
+    return session;
   }
 
- 
   clear(): void {
     this.sessions.clear();
     this.initializeDefaultSession();

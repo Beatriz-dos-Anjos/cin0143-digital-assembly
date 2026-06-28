@@ -2,32 +2,32 @@
 
 import { useCallback, useEffect, useState } from "react"
 import {
-  fromServerPlacar,
+  fromServerScore,
   type AssemblyState,
-  type Placar,
+  type Score,
 } from "@/src/lib/assembly"
-import { DEFAULT_SESSAO_ID, getSession, type ServerPlacar } from "@/src/lib/api"
+import { DEFAULT_SESSION_ID, getSession, type ServerScore } from "@/src/lib/api"
 import {
   connectSocket,
-  placarChannel,
+  scoreChannel,
   SOCKET_EVENTS,
   type ConnectionAck,
   type SessionResetPayload,
 } from "@/src/lib/socket"
 
-const EMPTY_PLACAR: Placar = { SIM: 0, NAO: 0 }
+const EMPTY_SCORE: Score = { sim: 0, NO: 0 }
 
 export function useSocketSession() {
   const [state, setState] = useState<AssemblyState>({
-    sessao_id: "",
-    placar_atual: EMPTY_PLACAR,
+    session_id: "",
+    current_score: EMPTY_SCORE,
     connected: false,
   })
 
   useEffect(() => {
     const socket = connectSocket()
     let active = true
-    let activePlacarChannel: string | null = null
+    let activeScoreChannel: string | null = null
 
     const onConnect = () => {
       setState((prev) => ({ ...prev, connected: true }))
@@ -37,52 +37,52 @@ export function useSocketSession() {
       setState((prev) => ({ ...prev, connected: false }))
     }
 
-    const onPlacar = (placar: ServerPlacar) => {
+    const onScore = (score: ServerScore) => {
       setState((prev) => ({
         ...prev,
-        placar_atual: fromServerPlacar(placar),
+        current_score: fromServerScore(score),
         connected: true,
       }))
     }
 
-    const subscribePlacar = (sessaoId: string) => {
-      const channel = placarChannel(sessaoId)
-      if (activePlacarChannel === channel) {
+    const subscribeScore = (sessionId: string) => {
+      const channel = scoreChannel(sessionId)
+      if (activeScoreChannel === channel) {
         return
       }
 
-      if (activePlacarChannel) {
-        socket.off(activePlacarChannel, onPlacar)
+      if (activeScoreChannel) {
+        socket.off(activeScoreChannel, onScore)
       }
 
-      activePlacarChannel = channel
-      socket.on(channel, onPlacar)
+      activeScoreChannel = channel
+      socket.on(channel, onScore)
     }
 
-    const applySession = (sessaoId: string, placar: ServerPlacar) => {
-      subscribePlacar(sessaoId)
+    const applySession = (sessionId: string, score: ServerScore) => {
+      subscribeScore(sessionId)
       setState((prev) => ({
-        sessao_id: sessaoId,
-        placar_atual: fromServerPlacar(placar),
+        session_id: sessionId,
+        current_score: fromServerScore(score),
         connected: prev.connected || socket.connected,
       }))
     }
 
     const onConnectionAck = (data: ConnectionAck) => {
-      applySession(data.sessao_id, data.placar_atual)
+      applySession(data.session_id, data.current_score)
     }
 
     const onSessionReset = (data: SessionResetPayload) => {
-      applySession(data.sessao_id, data.placar_atual)
+      applySession(data.session_id, data.current_score)
     }
 
     async function bootstrap() {
       try {
-        const session = await getSession(DEFAULT_SESSAO_ID)
+        const session = await getSession(DEFAULT_SESSION_ID)
         if (!active) return
-        applySession(session.sessao_id, session.placar_atual)
+        applySession(session.session_id, session.current_score)
       } catch {
-        // connection_ack ou reconexão podem hidratar depois
+        // connection_ack or reconnection might hydrate later
       }
     }
 
@@ -104,50 +104,50 @@ export function useSocketSession() {
       socket.off(SOCKET_EVENTS.CONNECTION_ACK, onConnectionAck)
       socket.off(SOCKET_EVENTS.SESSION_RESET, onSessionReset)
 
-      if (activePlacarChannel) {
-        socket.off(activePlacarChannel, onPlacar)
+      if (activeScoreChannel) {
+        socket.off(activeScoreChannel, onScore)
       }
     }
   }, [])
 
   const requestSession = useCallback(async () => {
-    const sessaoId = state.sessao_id || DEFAULT_SESSAO_ID
+    const sessionId = state.session_id || DEFAULT_SESSION_ID
 
     try {
-      const session = await getSession(sessaoId)
+      const session = await getSession(sessionId)
       setState((prev) => ({
         ...prev,
-        sessao_id: session.sessao_id,
-        placar_atual: fromServerPlacar(session.placar_atual),
+        session_id: session.session_id,
+        current_score: fromServerScore(session.current_score),
       }))
     } catch {
-      // mantém estado atual; socket continua como fonte ao vivo
+      // keep current state; socket continues as live source
     }
-  }, [state.sessao_id])
+  }, [state.session_id])
 
   return { state, requestSession }
 }
 
-/** Mantido para compatibilidade com imports existentes nos componentes. */
+/** Kept for compatibility with existing imports in components. */
 export function useAssembly() {
   const { state, requestSession } = useSocketSession()
 
   return {
-    state: state.sessao_id
+    state: state.session_id
       ? {
-          sessao_id: state.sessao_id,
-          placar_atual: state.placar_atual,
+          session_id: state.session_id,
+          current_score: state.current_score,
         }
       : null,
-    segundosRestantes: 0,
-    encerrada: !state.connected,
-    reiniciar: requestSession,
+    remainingSeconds: 0,
+    ended: !state.connected,
+    reset: requestSession,
     connected: state.connected,
   }
 }
 
-export function formatarTempo(segundos: number): string {
-  const m = Math.floor(segundos / 60)
-  const s = segundos % 60
+export function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }

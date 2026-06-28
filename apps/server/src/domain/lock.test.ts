@@ -1,74 +1,74 @@
 import { formatCastVote } from "./vote-parser";
 import { processVote } from "./vote-validator";
 import withSessionLock from "./lock.service";
-import { SessaoVotacao } from "./types";
+import { VotingSession } from "./types";
 
-function createSessionWithTokens(count: number): SessaoVotacao {
+function createSessionWithTokens(count: number): VotingSession {
   const tokens = Array.from({ length: count }, (_, i) =>
     `k${String(i).padStart(31, "0")}`
   );
 
   return {
-    sessao_id: "concurrency-test",
-    placar_atual: { sim: 0, nao: 0 },
-    tokens_autorizados: tokens,
-    tokens_que_ja_votaram: [],
-    votos_realizados: [],
-    criada_em: "2026-06-21 00:00:00",
-    iniciada_em: Date.now(),
+    session_id: "concurrency-test",
+    current_score: { sim: 0, nao: 0 },
+    authorized_tokens: tokens,
+    voted_tokens: [],
+    votes_cast: [],
+    created_at: "2026-06-21 00:00:00",
+    started_at: Date.now(),
   };
 }
 
 function voteWithLock(
-  sessao: SessaoVotacao,
+  session: VotingSession,
   token: string,
-  opcao: "sim" | "nao"
+  option: "sim" | "nao"
 ) {
-  return withSessionLock(sessao.sessao_id, () =>
-    processVote(sessao, formatCastVote(token, opcao))
+  return withSessionLock(session.session_id, () =>
+    processVote(session, formatCastVote(token, option))
   );
 }
 
-describe("withSessionLock — concorrência", () => {
-  it("processa votos paralelos de tokens distintos sem corromper o placar", async () => {
+describe("withSessionLock — concurrency", () => {
+  it("processes parallel votes of distinct tokens without corrupting the score", async () => {
     const TOTAL = 40;
-    const sessao = createSessionWithTokens(TOTAL);
+    const session = createSessionWithTokens(TOTAL);
 
     const results = await Promise.all(
-      sessao.tokens_autorizados.map((token, i) =>
-        voteWithLock(sessao, token, i % 2 === 0 ? "sim" : "nao")
+      session.authorized_tokens.map((token, i) =>
+        voteWithLock(session, token, i % 2 === 0 ? "sim" : "nao")
       )
     );
 
-    const sucessos = results.filter((r) => r.success);
-    expect(sucessos).toHaveLength(TOTAL);
-    expect(sessao.placar_atual.sim + sessao.placar_atual.nao).toBe(TOTAL);
-    expect(sessao.placar_atual.sim).toBe(TOTAL / 2);
-    expect(sessao.placar_atual.nao).toBe(TOTAL / 2);
-    expect(sessao.votos_realizados).toHaveLength(TOTAL);
-    expect(sessao.tokens_que_ja_votaram).toHaveLength(TOTAL);
+    const successes = results.filter((r) => r.success);
+    expect(successes).toHaveLength(TOTAL);
+    expect(session.current_score.sim + session.current_score.nao).toBe(TOTAL);
+    expect(session.current_score.sim).toBe(TOTAL / 2);
+    expect(session.current_score.nao).toBe(TOTAL / 2);
+    expect(session.votes_cast).toHaveLength(TOTAL);
+    expect(session.voted_tokens).toHaveLength(TOTAL);
   });
 
-  it("rejeita votos duplicados paralelos do mesmo token (apenas 1 aceito)", async () => {
-    const sessao = createSessionWithTokens(1);
-    const token = sessao.tokens_autorizados[0];
+  it("rejects parallel duplicate votes from the same token (only 1 accepted)", async () => {
+    const session = createSessionWithTokens(1);
+    const token = session.authorized_tokens[0];
     const PARALLEL_ATTEMPTS = 30;
 
     const results = await Promise.all(
       Array.from({ length: PARALLEL_ATTEMPTS }, () =>
-        voteWithLock(sessao, token, "sim")
+        voteWithLock(session, token!, "sim")
       )
     );
 
-    const sucessos = results.filter((r) => r.success);
-    const duplicados = results.filter(
-      (r) => !r.success && r.error.code === "VOTO_DUPLICADO"
+    const successes = results.filter((r) => r.success);
+    const duplicates = results.filter(
+      (r) => !r.success && r.error.code === "DUPLICATE_VOTE"
     );
 
-    expect(sucessos).toHaveLength(1);
-    expect(duplicados).toHaveLength(PARALLEL_ATTEMPTS - 1);
-    expect(sessao.placar_atual.sim).toBe(1);
-    expect(sessao.placar_atual.nao).toBe(0);
-    expect(sessao.votos_realizados).toHaveLength(1);
+    expect(successes).toHaveLength(1);
+    expect(duplicates).toHaveLength(PARALLEL_ATTEMPTS - 1);
+    expect(session.current_score.sim).toBe(1);
+    expect(session.current_score.nao).toBe(0);
+    expect(session.votes_cast).toHaveLength(1);
   });
 });

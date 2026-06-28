@@ -1,8 +1,7 @@
-
 import fs from "fs";
 import path from "path";
 
-export type LogLevel = "INFO" | "SUCCESS" | "WARNING" | "ERROR" | "ALERT" | "AUDITORIA";
+export type LogLevel = "INFO" | "SUCCESS" | "WARNING" | "ERROR" | "ALERT" | "AUDIT";
 
 export interface LogDetails {
   [key: string]: string | number | boolean | string[] | number[] | undefined;
@@ -20,8 +19,8 @@ const LOGS_DIR = path.resolve(process.env.LOGS_DIR || "logs");
 const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
 const LOG_FILES = {
   app: "app.log",
-  errors: "erros.log",
-  audit: "auditoria.log",
+  errors: "errors.log",
+  audit: "audit.log",
 } as const;
 
 export function formatTimestamp(date = new Date()): string {
@@ -69,7 +68,7 @@ function formatConsoleLine(log: StructuredLog): string {
     WARNING: "\x1b[33m", 
     ERROR: "\x1b[31m",   
     ALERT: "\x1b[35m", 
-    AUDITORIA: "\x1b[34m", 
+    AUDIT: "\x1b[34m", 
     RESET: "\x1b[0m",
   };
 
@@ -116,7 +115,7 @@ function appendToFile(filename: string, line: string): void {
     rotateLogIfNeeded(filePath);
     fs.appendFileSync(filePath, `${line}\n`, "utf-8");
   } catch (error) {
-    console.error(`Erro ao escrever log em ${filename}:`, error);
+    console.error(`Error writing log to ${filename}:`, error);
   }
 }
 
@@ -127,7 +126,7 @@ function resolveLogFiles(level: LogLevel): string[] {
     files.push(LOG_FILES.errors);
   }
 
-  if (level === "AUDITORIA" || level === "WARNING" || level === "ERROR") {
+  if (level === "AUDIT" || level === "WARNING" || level === "ERROR") {
     files.push(LOG_FILES.audit);
   }
 
@@ -181,8 +180,8 @@ export class Logger {
     return this.log("ALERT", module, message, details);
   }
 
-  auditoria(module: string, message: string, details?: LogDetails): StructuredLog {
-    return this.log("AUDITORIA", module, message, details);
+  audit(module: string, message: string, details?: LogDetails): StructuredLog {
+    return this.log("AUDIT", module, message, details);
   }
 }
 

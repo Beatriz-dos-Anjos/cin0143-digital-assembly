@@ -5,46 +5,45 @@ import { useState, useEffect, useRef } from "react"
 import { ArrowLeft, Clock, WifiOff } from "lucide-react"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { percentual, totalVotos, type Opcao } from "@/src/lib/assembly"
+import { percentage, totalVotes, type VoteOption } from "@/src/lib/assembly"
 import { useAssembly } from "@/src/hooks/use-assembly"
-import { useCronometro } from "@/src/hooks/use-cronometro"
-import { formatarTempo } from "@/src/lib/timer"
+import { useTimer } from "@/src/hooks/use-timer"
+import { formatTime } from "@/src/lib/timer"
 import { cn } from "@/src/lib/utils"
 
-// ─── Componente principal ─────────────────────────────────────────────────────
 export function ResultsPanel() {
   const { state, connected } = useAssembly()
-  const { segundosRestantes, encerrada } = useCronometro()
+  const { remainingSeconds, ended } = useTimer()
 
-  const placar = state?.placar_atual ?? { SIM: 0, NAO: 0 }
-  const total = totalVotos(placar)
-  const pctSim = percentual(placar.SIM, total)
-  const pctNao = percentual(placar.NAO, total)
-  const aoVivo = connected
-  const urgente = segundosRestantes > 0 && segundosRestantes < 30
+  const score = state?.current_score ?? { sim: 0, nao: 0 }
+  const total = totalVotes(score)
+  const pctsim = percentage(score.sim, total)
+  const pctNo = percentage(score.nao, total)
+  const live = connected
+  const urgent = remainingSeconds > 0 && remainingSeconds < 30
 
-  // Detecta mudança no placar e dispara toast
-  const placarAnteriorRef = useRef({ SIM: 0, NAO: 0 })
-  const primeiroRenderRef = useRef(true)
+  // Detects changes in score and displays toast notifications
+  const previousScoreRef = useRef({ sim: 0, nao: 0 })
+  const firstRenderRef = useRef(true)
 
   useEffect(() => {
-    // Ignora o primeiro render (estado inicial zerado)
-    if (primeiroRenderRef.current) {
-      primeiroRenderRef.current = false
-      placarAnteriorRef.current = { ...placar }
+    // Ignore first render (initial state at zero)
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false
+      previousScoreRef.current = { ...score }
       return
     }
 
-    const anterior = placarAnteriorRef.current
+    const previous = previousScoreRef.current
 
-    if (placar.SIM > anterior.SIM) {
+    if (score.sim > previous.sim) {
       toast.success("Novo voto SIM registrado", { autoClose: 4000 })
-    } else if (placar.NAO > anterior.NAO) {
+    } else if (score.nao > previous.nao) {
       toast.error("Novo voto NÃO registrado", { autoClose: 4000 })
     }
 
-    placarAnteriorRef.current = { ...placar }
-  }, [placar.SIM, placar.NAO])
+    previousScoreRef.current = { ...score }
+  }, [score.sim, score.nao])
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:py-16">
@@ -68,7 +67,7 @@ export function ResultsPanel() {
       <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="inline-flex items-center rounded-full border border-border bg-secondary px-3 py-1 font-mono text-xs font-semibold tracking-wider text-secondary-foreground">
-            {state?.sessao_id ?? "assembleia"}
+            {state?.session_id ?? "assembly"}
           </span>
           <h1 className="mt-3 text-4xl font-black tracking-tight text-balance">
             Apuração em tempo real
@@ -82,26 +81,26 @@ export function ResultsPanel() {
           <div
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold tracking-wider tabular-nums font-mono transition-colors",
-              encerrada
+              ended
                 ? "border-red-500/30 bg-red-500/10 text-red-400"
-                : urgente
+                : urgent
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-400 animate-pulse"
                   : "border-muted-foreground/30 bg-secondary text-muted-foreground",
             )}
           >
-            <Clock className={cn("size-3.5", urgente && "text-amber-400")} aria-hidden />
-            <span>{formatarTempo(segundosRestantes)}</span>
+            <Clock className={cn("size-3.5", urgent && "text-amber-400")} aria-hidden />
+            <span>{formatTime(remainingSeconds)}</span>
           </div>
 
           <div
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold tracking-wider",
-              aoVivo
+              live
                 ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
                 : "border-border bg-secondary text-muted-foreground",
             )}
           >
-            {aoVivo ? (
+            {live ? (
               <>
                 <span className="relative flex size-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
@@ -120,8 +119,8 @@ export function ResultsPanel() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <ScoreCard opcao="SIM" valor={placar.SIM} percentual={pctSim} />
-        <ScoreCard opcao="NAO" valor={placar.NAO} percentual={pctNao} />
+        <ScoreCard option="SIM" value={score.sim} percentage={pctsim} />
+        <ScoreCard option="NÃO" value={score.nao} percentage={pctNo} />
       </div>
 
       <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 sm:p-8">
@@ -148,11 +147,11 @@ export function ResultsPanel() {
         >
           <div
             className="h-full bg-blue-600 transition-all duration-700 ease-out"
-            style={{ width: `${pctSim}%` }}
+            style={{ width: `${pctsim}%` }}
           />
           <div
             className="h-full bg-red-500 transition-all duration-700 ease-out"
-            style={{ width: `${pctNao}%` }}
+            style={{ width: `${pctNo}%` }}
           />
         </div>
 
@@ -160,12 +159,12 @@ export function ResultsPanel() {
           <div className="flex items-center gap-2">
             <span className="size-2.5 rounded-full bg-blue-600" aria-hidden />
             <span className="font-mono text-xs font-semibold text-muted-foreground">
-              SIM <span className="ml-1 text-foreground">{pctSim.toFixed(1)}%</span>
+              SIM <span className="ml-1 text-foreground">{pctsim.toFixed(1)}%</span>
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs font-semibold text-muted-foreground">
-              NÃO <span className="mr-1 text-foreground">{pctNao.toFixed(1)}%</span>
+              NÃO <span className="mr-1 text-foreground">{pctNo.toFixed(1)}%</span>
             </span>
             <span className="size-2.5 rounded-full bg-red-500" aria-hidden />
           </div>
@@ -176,47 +175,47 @@ export function ResultsPanel() {
 }
 
 function ScoreCard({
-  opcao,
-  valor,
-  percentual: pct,
+  option,
+  value,
+  percentage: pct,
 }: {
-  opcao: Opcao
-  valor: number
-  percentual: number
+  option: VoteOption
+  value: number
+  percentage: number
 }) {
-  const isSim = opcao === "SIM"
+  const issim = option === "SIM"
 
   return (
     <div
       className={cn(
         "relative overflow-hidden rounded-3xl border p-6 sm:p-8",
-        isSim ? "border-blue-500/20 bg-blue-500/6" : "border-red-500/20 bg-red-500/6",
+        issim ? "border-blue-500/20 bg-blue-500/6" : "border-red-500/20 bg-red-500/6",
       )}
     >
       <div
         aria-hidden
         className="pointer-events-none absolute right-0 top-0 size-32 -translate-y-1/2 translate-x-1/2 rounded-full blur-2xl"
         style={{
-          background: isSim ? "hsl(220 80% 60% / 0.12)" : "hsl(0 75% 55% / 0.10)",
+          background: issim ? "hsl(220 80% 60% / 0.12)" : "hsl(0 75% 55% / 0.10)",
         }}
       />
 
       <div className="flex items-center justify-between">
-        <span className={cn("text-xs font-bold tracking-[0.18em]", isSim ? "text-blue-400" : "text-red-400")}>
-          {isSim ? "SIM" : "NÃO"}
+        <span className={cn("text-xs font-bold tracking-[0.18em]", issim ? "text-blue-400" : "text-red-400")}>
+          {issim ? "SIM" : "NÃO"}
         </span>
         <span className="font-mono text-xs font-semibold text-muted-foreground">
           {pct.toFixed(1)}%
         </span>
       </div>
 
-      <p className={cn("mt-3 text-7xl font-black tabular-nums tracking-tight transition-all duration-300", isSim ? "text-blue-500" : "text-red-500")}>
-        {valor}
+      <p className={cn("mt-3 text-7xl font-black tabular-nums tracking-tight transition-all duration-300", issim ? "text-blue-500" : "text-red-500")}>
+        {value}
       </p>
 
       <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-card/60">
         <div
-          className={cn("h-full transition-all duration-700 ease-out", isSim ? "bg-blue-500" : "bg-red-500")}
+          className={cn("h-full transition-all duration-700 ease-out", issim ? "bg-blue-500" : "bg-red-500")}
           style={{ width: `${pct}%` }}
         />
       </div>

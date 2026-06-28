@@ -12,7 +12,7 @@ import {
   RefreshCw,
   ChevronRight,
 } from "lucide-react"
-import { API_URL, DEFAULT_SESSAO_ID } from "@/src/lib/api"
+import { API_URL, DEFAULT_SESSION_ID } from "@/src/lib/api"
 
 type CommandId = "tokens" | "votes" | "placar" | "session"
 
@@ -48,7 +48,7 @@ const COMMANDS: CommandDef[] = [
     original: "placar",
     description: "Contagem de SIM e NÃO em tempo real.",
     icon: Gauge,
-    endpoint: "/api/placar",
+    endpoint: "/api/score",
   },
   {
     id: "session",
@@ -81,11 +81,11 @@ export default function ComandosPage() {
 
     try {
       const res = await fetch(
-        `${API_URL}${cmd.endpoint}?sessaoId=${encodeURIComponent(DEFAULT_SESSAO_ID)}`,
+        `${API_URL}${cmd.endpoint}?sessionId=${encodeURIComponent(DEFAULT_SESSION_ID)}`,
       )
       if (!res.ok) {
         const body = await res.json().catch(() => null)
-        throw new Error(body?.error ?? `Falha ao consultar (HTTP ${res.status})`)
+        throw new Error(body?.error ?? `Request failed (HTTP ${res.status})`)
       }
       const data = await res.json()
       setResults((prev) => ({ ...prev, [cmd.id]: { status: "success", data } }))
@@ -94,7 +94,7 @@ export default function ComandosPage() {
         ...prev,
         [cmd.id]: {
           status: "error",
-          message: err instanceof Error ? err.message : "Erro desconhecido",
+          message: err instanceof Error ? err.message : "Unknown error",
         },
       }))
     }
@@ -119,7 +119,7 @@ export default function ComandosPage() {
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" strokeWidth={1.5} aria-hidden />
-        Início
+        Home
       </Link>
 
       <div className="mt-6 flex items-center gap-3">
@@ -135,7 +135,7 @@ export default function ComandosPage() {
       </div>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-[280px_1fr]">
-        {/* Lista de comandos */}
+        {/* Commands List */}
         <nav className="flex flex-col gap-2">
           {COMMANDS.map((cmd) => {
             const Icon = cmd.icon
@@ -182,7 +182,7 @@ export default function ComandosPage() {
           })}
         </nav>
 
-        {/* Painel de resultado */}
+        {/* Results Panel */}
         <section className="rounded-3xl border border-border bg-card p-7">
           {!activeCommand ? (
             <EmptyState />
@@ -247,11 +247,11 @@ function ResultPanel({
 
       <div className="mt-6 rounded-2xl bg-muted/40 p-5">
         {result.status === "idle" && (
-          <p className="text-sm text-muted-foreground">Sem dados ainda.</p>
+          <p className="text-sm text-muted-foreground">No data yet.</p>
         )}
 
         {result.status === "loading" && (
-          <p className="text-sm text-muted-foreground">Consultando servidor…</p>
+          <p className="text-sm text-muted-foreground">Querying server…</p>
         )}
 
         {result.status === "error" && (
@@ -269,7 +269,7 @@ function ResultPanel({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CommandOutput({ commandId, data }: { commandId: CommandId; data: any }) {
   if (commandId === "tokens") {
-    const tokens: string[] = data?.tokens_autorizados ?? []
+    const tokens: string[] = data?.authorized_tokens ?? []
     return (
       <div>
         <p className="mb-3 text-xs font-semibold tracking-wider text-muted-foreground">
@@ -285,17 +285,17 @@ function CommandOutput({ commandId, data }: { commandId: CommandId; data: any })
   }
 
   if (commandId === "votes") {
-    const votos: { token: string; voto: string; timestamp: string }[] = data?.votos ?? []
+    const votes: { token: string; vote: string; timestamp: string }[] = data?.votes ?? []
     return (
       <div>
         <p className="mb-3 text-xs font-semibold tracking-wider text-muted-foreground">
-          VOTOS REGISTRADOS ({votos.length})
+          VOTOS REGISTRADOS ({votes.length})
         </p>
-        {votos.length === 0 ? (
+        {votes.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum voto registrado ainda.</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {votos.map((v, i) => (
+            {votes.map((v, i) => (
               <li
                 key={`${v.token}-${i}`}
                 className="flex flex-wrap items-center gap-2 rounded-lg bg-card px-3 py-2 text-sm"
@@ -304,12 +304,12 @@ function CommandOutput({ commandId, data }: { commandId: CommandId; data: any })
                 <span className="text-muted-foreground/50">→</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    v.voto === "sim"
+                    v.vote === "SIM"
                       ? "bg-blue-500/10 text-blue-500"
                       : "bg-red-500/10 text-red-400"
                   }`}
                 >
-                  {v.voto.toUpperCase()}
+                  {v.vote.toUpperCase()}
                 </span>
                 <span className="ml-auto text-xs text-muted-foreground/60">{v.timestamp}</span>
               </li>
@@ -332,39 +332,39 @@ function CommandOutput({ commandId, data }: { commandId: CommandId; data: any })
   }
 
   if (commandId === "session") {
-    const aptos: string[] = data?.tokens_autorizados ?? []
-    const votaram: string[] = data?.tokens_que_ja_votaram ?? []
+    const eligible: string[] = data?.authorized_tokens ?? []
+    const voted: string[] = data?.voted_tokens ?? []
     return (
       <div className="flex flex-col gap-5">
         <div>
-          <p className="text-xs font-semibold tracking-wider text-muted-foreground">SESSÃO</p>
-          <p className="font-mono text-sm text-card-foreground">{data?.sessao_id}</p>
+          <p className="text-xs font-semibold tracking-wider text-muted-foreground">SESSION</p>
+          <p className="font-mono text-sm text-card-foreground">{data?.session_id}</p>
         </div>
 
         <div className="flex gap-4">
-          <PlacarStat label="SIM" value={data?.placar_atual?.sim ?? 0} accent="blue" />
-          <PlacarStat label="NÃO" value={data?.placar_atual?.nao ?? 0} accent="red" />
+          <PlacarStat label="SIM" value={data?.current_score?.sim ?? 0} accent="blue" />
+          <PlacarStat label="NÃO" value={data?.current_score?.nao ?? 0} accent="red" />
         </div>
 
         <div>
           <p className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground">
-            AINDA APTOS A VOTAR ({aptos.length})
+            AINDA APTOS A VOTAR ({eligible.length})
           </p>
-          {aptos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum token apto.</p>
+          {eligible.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum token apto a votar.</p>
           ) : (
-            <TokenList tokens={aptos} />
+            <TokenList tokens={eligible} />
           )}
         </div>
 
         <div>
           <p className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground">
-            JÁ VOTARAM ({votaram.length})
+            JÁ VOTARAM ({voted.length})
           </p>
-          {votaram.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum token votou.</p>
+          {voted.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum token já votou.</p>
           ) : (
-            <TokenList tokens={votaram} />
+            <TokenList tokens={voted} />
           )}
         </div>
       </div>

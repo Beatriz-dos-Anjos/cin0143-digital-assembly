@@ -13,20 +13,20 @@ import {
 } from "lucide-react"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { type Opcao } from "@/src/lib/assembly"
+import { type VoteOption } from "@/src/lib/assembly"
 import { useVoter } from "@/src/hooks/use-voter"
 import { useAssembly } from "@/src/hooks/use-assembly"
-import { useCronometro, syncSessionTimer } from "@/src/hooks/use-cronometro"
+import { useTimer, syncSessionTimer } from "@/src/hooks/use-timer"
 import {
   ApiRequestError,
-  DEFAULT_SESSAO_ID,
+  DEFAULT_SESSION_ID,
   getSession,
   resetSession,
 } from "@/src/lib/api"
-import { formatarTempo } from "@/src/lib/timer"
+import { formatTime } from "@/src/lib/timer"
 import { cn } from "@/src/lib/utils"
 
-const TOKENS_AUTORIZADOS_INICIAIS = [
+const INITIAL_AUTHORIZED_TOKENS = [
   "550e8400-e29b-41d4-a716-446655440000",
   "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
   "6ba7b811-9dad-11d1-80b4-00c04fd430c8",
@@ -44,47 +44,47 @@ export function VotingBooth() {
     token,
     setToken,
     feedback,
-    votando,
-    sessaoId,
+    voting,
+    sessionId,
     connected,
-    gerandoToken,
-    gerarToken,
-    registrarVoto,
-    limparEstado,
-    mostrarErro,
+    generatingToken,
+    generateToken,
+    submitVote,
+    clearState,
+    showError,
   } = useVoter()
 
   const { state } = useAssembly()
 
   const [resetKey, setResetKey] = useState(0)
-  const { segundosRestantes, encerrada } = useCronometro(resetKey)
+  const { remainingSeconds, ended } = useTimer(resetKey)
 
-  const [tokensList, setTokensList] = useState<string[]>(TOKENS_AUTORIZADOS_INICIAIS)
-  const [tokensVotados, setTokensVotados] = useState<string[]>([])
-  const [reiniciando, setReiniciando] = useState(false)
+  const [tokensList, setTokensList] = useState<string[]>(INITIAL_AUTHORIZED_TOKENS)
+  const [votedTokens, setVotedTokens] = useState<string[]>([])
+  const [resetting, setResetting] = useState(false)
 
-  // Toast ao mudar placar (mesmo mecanismo do painel)
-  const placarAnteriorRef = useRef({ SIM: 0, NAO: 0 })
-  const primeiroRenderRef = useRef(true)
-  const placar = state?.placar_atual ?? { SIM: 0, NAO: 0 }
+  // Toast notification when score changes
+  const previousScoreRef = useRef({ sim: 0, nao: 0 })
+  const firstRenderRef = useRef(true)
+  const score = state?.current_score ?? { sim: 0, nao: 0 }
 
   useEffect(() => {
-    if (primeiroRenderRef.current) {
-      primeiroRenderRef.current = false
-      placarAnteriorRef.current = { ...placar }
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false
+      previousScoreRef.current = { ...score }
       return
     }
 
-    const anterior = placarAnteriorRef.current
+    const previous = previousScoreRef.current
 
-    if (placar.SIM > anterior.SIM) {
-      toast.success("Novo voto SIM registrado", { autoClose: 4000 })
-    } else if (placar.NAO > anterior.NAO) {
-      toast.error("Novo voto NÃO registrado", { autoClose: 4000 })
+    if (score.sim > previous.sim) {
+      toast.success("New sim vote registered", { autoClose: 4000 })
+    } else if (score.nao > previous.nao) {
+      toast.error("New nao vote registered", { autoClose: 4000 })
     }
 
-    placarAnteriorRef.current = { ...placar }
-  }, [placar.SIM, placar.NAO])
+    previousScoreRef.current = { ...score }
+  }, [score.sim, score.nao])
 
   useEffect(() => {
     if (token && !tokensList.includes(token)) {
@@ -92,80 +92,80 @@ export function VotingBooth() {
     }
   }, [token, tokensList])
 
-  function adicionarTokenGerado(novoToken: string) {
+  function addGeneratedToken(newToken: string) {
     setTokensList((prev) =>
-      prev.includes(novoToken) ? prev : [...prev, novoToken],
+      prev.includes(newToken) ? prev : [...prev, newToken],
     )
   }
 
-  async function handleGerarToken() {
-    const novoToken = await gerarToken()
-    if (novoToken) adicionarTokenGerado(novoToken)
+  async function handleGenerateToken() {
+    const newToken = await generateToken()
+    if (newToken) addGeneratedToken(newToken)
   }
 
   useEffect(() => {
     let active = true
-    async function carregarDadosSessao() {
+    async function loadSessionData() {
       if (!connected) return
       try {
-        const data = await getSession(sessaoId || DEFAULT_SESSAO_ID)
+        const data = await getSession(sessionId || DEFAULT_SESSION_ID)
         if (!active) return
 
         syncSessionTimer({
-          iniciada_em: data.iniciada_em,
-          duracao_segundos: data.duracao_segundos,
-          sessao_id: data.sessao_id,
+          started_at: data.started_at,
+          duration_seconds: data.duration_seconds,
+          session_id: data.session_id,
         })
 
-        if (data.votos_realizados) {
-          const votados = data.votos_realizados.map((v: { token: string }) => v.token)
-          setTokensVotados(votados)
+        if (data.votes_cast) {
+          const voted = data.votes_cast.map((v: { token: string }) => v.token)
+          setVotedTokens(voted)
         } else {
-          setTokensVotados([])
+          setVotedTokens([])
         }
       } catch (err) {
-        console.error("Erro ao carregar dados da sessao:", err)
+        console.error("Error loading session data:", err)
       }
     }
 
-    carregarDadosSessao()
-    const interval = setInterval(carregarDadosSessao, 5000)
+    loadSessionData()
+    const interval = setInterval(loadSessionData, 5000)
     return () => {
       active = false
       clearInterval(interval)
     }
-  }, [connected, sessaoId, feedback])
+  }, [connected, sessionId, feedback])
 
-  const desabilitadoVoto =
-    encerrada || !connected || gerandoToken || !token || votando !== null
-  const desabilitadoGerar =
-    encerrada || !connected || gerandoToken || votando !== null
+  const voteDisabled =
+    ended || !connected || generatingToken || !token || voting !== null
+  const generateDisabled =
+    ended || !connected || generatingToken || voting !== null
 
-  async function handleReiniciar() {
-    if (reiniciando) return
+  async function handleReset() {
+    if (resetting) return
 
-    limparEstado()
-    setTokensVotados([])
-    setTokensList([...TOKENS_AUTORIZADOS_INICIAIS])
+    clearState()
+    setVotedTokens([])
+    setTokensList([...INITIAL_AUTHORIZED_TOKENS])
     setToken("")
-    setReiniciando(true)
+    setResetting(true)
 
     try {
-      const result = await resetSession(sessaoId || DEFAULT_SESSAO_ID)
+      const result = await resetSession(sessionId || DEFAULT_SESSION_ID)
       setResetKey((k) => k + 1)
       syncSessionTimer({
-        iniciada_em: result.iniciada_em,
-        duracao_segundos: result.duracao_segundos,
-        sessao_id: result.sessao_id,
+        started_at: result.started_at,
+        duration_seconds: result.duration_seconds,
+        session_id: result.session_id,
       })
     } catch (error) {
-      const mensagem =
+      const message =
         error instanceof ApiRequestError
           ? error.message
-          : "Não foi possível reiniciar a sessão no servidor."
-      mostrarErro(mensagem)
+          : "Could not reset session on the server."
+      showError(message)
     } finally {
-      setReiniciando(false)
+      setResetting(false)
     }
   }
 
@@ -185,7 +185,7 @@ export function VotingBooth() {
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" aria-hidden />
-        Voltar
+        Back
       </Link>
 
       <section className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
@@ -201,18 +201,18 @@ export function VotingBooth() {
         <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between gap-4">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1 font-mono text-xs font-semibold tracking-wider text-secondary-foreground">
-              {sessaoId ?? "ASSEMBLEIA"}
+              {sessionId ?? "ASSEMBLY"}
             </span>
 
             <div className="flex items-center gap-3">
               <div
                 className={cn(
                   "inline-flex items-center gap-1.5 font-mono text-sm font-bold tabular-nums",
-                  encerrada ? "text-red-400" : "text-muted-foreground",
+                  ended ? "text-red-400" : "text-muted-foreground",
                 )}
               >
                 <Clock className="size-3.5" aria-hidden />
-                <span>{formatarTempo(segundosRestantes)}</span>
+                <span>{formatTime(remainingSeconds)}</span>
               </div>
 
               <ConnectionBadge connected={connected} />
@@ -228,8 +228,8 @@ export function VotingBooth() {
 
           <button
             type="button"
-            onClick={handleGerarToken}
-            disabled={desabilitadoGerar}
+            onClick={handleGenerateToken}
+            disabled={generateDisabled}
             className={cn(
               "mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground transition-all",
               "hover:bg-secondary/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/30",
@@ -237,7 +237,7 @@ export function VotingBooth() {
             )}
           >
             <KeyRound className="size-4" aria-hidden />
-            {gerandoToken ? "Gerando token…" : "Gerar token para votação"}
+            {generatingToken ? "Gerando token..." : "Gere um token válido"}
           </button>
 
           <div className="mt-5">
@@ -248,8 +248,8 @@ export function VotingBooth() {
               id="token"
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              disabled={encerrada || gerandoToken || votando !== null}
-              placeholder={gerandoToken ? "Gerando token…" : "Gere ou cole seu token aqui"}
+              disabled={ended || generatingToken || voting !== null}
+              placeholder={generatingToken ? "Gerando token..." : "Gere ou cole seu token aqui"}
               autoComplete="off"
               spellCheck={false}
               className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 font-mono text-sm tracking-widest outline-none transition-all placeholder:text-muted-foreground/50 focus-visible:border-foreground/30 focus-visible:ring-2 focus-visible:ring-foreground/10 disabled:cursor-not-allowed disabled:opacity-40"
@@ -258,31 +258,31 @@ export function VotingBooth() {
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <VoteButton
-              opcao="SIM"
-              onClick={() => registrarVoto("SIM")}
-              disabled={desabilitadoVoto}
-              loading={votando === "SIM"}
+              option="SIM"
+              onClick={() => submitVote("SIM")}
+              disabled={voteDisabled}
+              loading={voting === "SIM"}
             />
             <VoteButton
-              opcao="NAO"
-              onClick={() => registrarVoto("NAO")}
-              disabled={desabilitadoVoto}
-              loading={votando === "NAO"}
+              option="NÃO"
+              onClick={() => submitVote("NÃO")}
+              disabled={voteDisabled}
+              loading={voting === "NÃO"}
             />
           </div>
 
           {feedback ? (
-            <Aviso
-              tone={feedback.tipo}
+            <Notice
+              tone={feedback.type}
               icon={
-                feedback.tipo === "sucesso" ? (
+                feedback.type === "success" ? (
                   <CheckCircle2 className="size-4" aria-hidden />
                 ) : (
                   <AlertCircle className="size-4" aria-hidden />
                 )
               }
-              titulo={feedback.tipo === "sucesso" ? "Voto confirmado" : "Voto rejeitado"}
-              descricao={feedback.mensagem}
+              title={feedback.type === "success" ? "Vote confirmed" : "Vote rejected"}
+              description={feedback.message}
             />
           ) : null}
         </div>
@@ -299,8 +299,8 @@ export function VotingBooth() {
 
         <button
           type="button"
-          disabled={encerrada}
-          onClick={handleGerarToken}
+          disabled={ended}
+          onClick={handleGenerateToken}
           className={cn(
             "mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2.5 text-xs font-semibold text-secondary-foreground transition-all",
             "hover:bg-secondary/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/30",
@@ -308,33 +308,33 @@ export function VotingBooth() {
           )}
         >
           <KeyRound className="size-3.5" aria-hidden />
-          {gerandoToken ? "Gerando token…" : "Gerar Novo Token Válido"}
+          {generatingToken ? "Generando token..." : "Gerando novo token válido"}
         </button>
 
         <div className="mt-4 max-h-36 overflow-y-auto rounded-xl border border-border bg-background p-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {tokensList.map((t) => {
-              const jaVotou = tokensVotados.includes(t)
-              const selecionado = t === token
+              const hasVoted = votedTokens.includes(t)
+              const selected = t === token
               return (
                 <button
                   key={t}
                   type="button"
-                  disabled={encerrada}
+                  disabled={ended}
                   onClick={() => setToken(t)}
                   className={cn(
                     "rounded-lg border px-2 py-1.5 font-mono text-[10px] font-semibold transition-all text-center",
-                    selecionado
-                      ? jaVotou
+                    selected
+                      ? hasVoted
                         ? "border-red-500 bg-red-500/10 text-red-400"
                         : "border-blue-500 bg-blue-500/10 text-blue-500"
-                      : jaVotou
+                      : hasVoted
                         ? "border-red-500/15 bg-red-500/5 text-red-400 hover:border-red-500/40 hover:bg-red-500/10"
                         : "border-border hover:border-foreground/20 text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {t}
-                  {jaVotou && " (votou)"}
+                  {hasVoted && " (voted)"}
                 </button>
               )
             })}
@@ -343,15 +343,12 @@ export function VotingBooth() {
       </section>
 
       <div className="flex items-center justify-between rounded-2xl border border-dashed border-border/60 px-5 py-3.5">
-        <span className="text-xs font-semibold tracking-wider text-muted-foreground/50">
-          MODO DEMONSTRAÇÃO
-        </span>
         <button
-          onClick={handleReiniciar}
-          disabled={reiniciando}
+          onClick={handleReset}
+          disabled={resetting}
           className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground underline-offset-4 hover:underline disabled:opacity-50"
         >
-          {reiniciando ? "Reiniciando…" : "Reiniciar sessao"}
+          {resetting ? "Resetando..." : "Resete a sessão"}
         </button>
       </div>
     </div>
@@ -384,30 +381,30 @@ function ConnectionBadge({ connected }: { connected: boolean }) {
 }
 
 function VoteButton({
-  opcao,
+  option,
   onClick,
   disabled,
   loading,
 }: {
-  opcao: Opcao
+  option: VoteOption
   onClick: () => void
   disabled: boolean
   loading: boolean
 }) {
-  const isSim = opcao === "SIM"
+  const issim = option === "SIM"
 
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      aria-label={`Votar ${isSim ? "SIM" : "NÃO"}`}
+      aria-label={`Vote ${issim ? "SIM" : "NAO"}`}
       className={cn(
         "group relative flex aspect-3/2 flex-col items-center justify-center overflow-hidden rounded-2xl text-center transition-all duration-200",
         "focus-visible:outline-2 focus-visible:outline-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-40",
         !disabled && "hover:scale-[1.02] active:scale-[0.97]",
-        isSim
+        issim
           ? [
               "bg-blue-600 text-white",
               "focus-visible:outline-blue-500",
@@ -422,31 +419,31 @@ function VoteButton({
             ],
       )}
     >
-      <span className="text-[10px] font-bold tracking-[0.2em] opacity-70">VOTO</span>
+      <span className="text-[10px] font-bold tracking-[0.2em] opacity-70">VOTE</span>
       <span className="mt-0.5 text-4xl font-black tracking-tight">
-        {loading ? "·  ·  ·" : isSim ? "SIM" : "NÃO"}
+        {loading ? "·  ·  ·" : issim ? "SIM" : "NÃO"}
       </span>
     </button>
   )
 }
 
-function Aviso({
+function Notice({
   tone,
   icon,
-  titulo,
-  descricao,
+  title,
+  description,
 }: {
-  tone: "erro" | "sucesso"
+  tone: "error" | "success"
   icon: React.ReactNode
-  titulo: string
-  descricao: string
+  title: string
+  description: string
 }) {
   return (
     <div
-      role={tone === "erro" ? "alert" : "status"}
+      role={tone === "error" ? "alert" : "status"}
       className={cn(
         "mt-5 flex items-start gap-3 rounded-2xl border p-4",
-        tone === "erro"
+        tone === "error"
           ? "border-red-500/20 bg-red-500/8 text-card-foreground"
           : "border-blue-500/20 bg-blue-500/8 text-card-foreground",
       )}
@@ -454,14 +451,14 @@ function Aviso({
       <span
         className={cn(
           "mt-0.5 shrink-0",
-          tone === "erro" ? "text-red-400" : "text-blue-400",
+          tone === "error" ? "text-red-400" : "text-blue-400",
         )}
       >
         {icon}
       </span>
       <div>
-        <p className="text-sm font-semibold">{titulo}</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{descricao}</p>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</p>
       </div>
     </div>
   )
