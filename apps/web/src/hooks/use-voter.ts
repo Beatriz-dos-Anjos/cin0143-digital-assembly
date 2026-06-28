@@ -134,7 +134,7 @@ export function useVoter() {
           setToken("")
           setFeedback({
             type: "success",
-            message: "Vote successfully cast. Thank you!",
+            message: "Voto registrado com sucesso! Obrigado por participar.",
           })
         } catch (error) {
           const message =

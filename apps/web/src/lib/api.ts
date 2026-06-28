@@ -1,3 +1,5 @@
+import type { VoteOption } from "./assembly"
+
 export const API_URL =
   process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3001"
 
@@ -101,7 +103,7 @@ export async function generateToken(
 export async function castVote(
   sessionId: string,
   token: string,
-  option: "sim" | "nao",
+  option: VoteOption,
 ): Promise<VoteResponse> {
   return request<VoteResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/votes`,

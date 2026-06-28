@@ -1,7 +1,7 @@
 import { formatCastVote } from "./vote-parser";
 import { processVote } from "./vote-validator";
 import withSessionLock from "./lock.service";
-import { VotingSession } from "./types";
+import { VotingSession, VoteOption } from "./types";
 
 function createSessionWithTokens(count: number): VotingSession {
   const tokens = Array.from({ length: count }, (_, i) =>
@@ -22,7 +22,7 @@ function createSessionWithTokens(count: number): VotingSession {
 function voteWithLock(
   session: VotingSession,
   token: string,
-  option: "sim" | "nao"
+  option: VoteOption
 ) {
   return withSessionLock(session.session_id, () =>
     processVote(session, formatCastVote(token, option))
@@ -36,7 +36,7 @@ describe("withSessionLock — concurrency", () => {
 
     const results = await Promise.all(
       session.authorized_tokens.map((token, i) =>
-        voteWithLock(session, token, i % 2 === 0 ? "sim" : "nao")
+        voteWithLock(session, token, i % 2 === 0 ? "SIM" : "NÃO")
       )
     );
 
@@ -56,7 +56,7 @@ describe("withSessionLock — concurrency", () => {
 
     const results = await Promise.all(
       Array.from({ length: PARALLEL_ATTEMPTS }, () =>
-        voteWithLock(session, token!, "sim")
+        voteWithLock(session, token!, "SIM")
       )
     );
 

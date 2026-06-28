@@ -6,9 +6,13 @@ Sistema de votação digital distribuído para assembleias de condomínios ou co
 
 Este repositório contém a arquitetura, a documentação e o esqueleto base de um **Sistema de Votação Digital para Assembleias**, projetado para:
 
-- Gerenciar sessões de votação em tempo real
-- Suportar múltiplos clientes conectados concorrentemente
-- Garantir integridade e unicidade dos votos por token
+- Votação autenticada por token com validação no servidor
+- Placar sincronizado em tempo real via WebSocket (Socket.io)
+- Painel público de apuração com toasts de eventos ao vivo
+- Console gerencial para inspeção de tokens, votos e sessão
+- Travas atômicas (`async-lock`) para evitar race conditions em votos simultâneos
+- Cronômetro de sessão sincronizado com o servidor (persiste entre recargas)
+
 
 ---
 ___Seção Entrega 2
@@ -16,7 +20,7 @@ ___Seção Entrega 2
 **1. Instalar dependências**
 
 ```bash
-git clone <repo>
+git clone https://github.com/Beatriz-dos-Anjos/cin0143-digital-assembly
 cd cin0143-digital-assembly
 npm install
 ```
@@ -30,38 +34,37 @@ npm run dev
 Saída esperada:
 
 ```
-[2026-06-18 19:06:32] [INFO] [SERVER] Servidor iniciado
+ Default session initialized
+  ├─ session_id: assembleia-2026-06
+  └─ total_tokens: 10
+[2026-06-28 18:11:45] [SUCCESS] [SERVER] Server started successfully
+  ├─ port: 3001
   ├─ url: http://localhost:3001
-  └─ websocket: ws://localhost:3001
-[2026-06-18 19:06:32] [INFO] [SERVER] Sistema aguardando conexões...
-  └─ sessao_padrao: assembleia-2026-06
+  ├─ websocket: ws://localhost:3001
+  └─ environment: development
+[2026-06-28 18:11:45] [INFO] [SERVER] System waiting for connections...
 ```
 
-**3. Abrir console de gerenciamento (Terminal 2)**
-
-```bash
-npm run console
-```
-
-Comandos disponíveis:
-
-```
- 
-  LIST_TOKENS           - Listar todos os tokens válidos
-  LIST_VOTES            - Listar votos registrados
-  PLACAR                - Exibir placar atual
-  CLEAR / HELP / EXIT
-```
 
 **Tokens de teste:**
 
-Os tokens de teste não são pré-carregados ao iniciar o servidor. Eles são criados sob demanda, conforme solicitado pelo usuário:
-1. Você inicia o servidor : npm run dev. Inicia o  console (painel gerencial : npm run console) e faz quantos clientes quiser com npm run client em diferentes terminais.
+Os tokens de teste são pré-carregados ao iniciar o servidor. Eles estão em uma lista estática de tokens autorizados para votar. Você pode utilizar qualquer um dos seguintes tokens para simular votações:
+
+- `550e8400-e29b-41d4-a716-446655440000`
+- `6ba7b810-9dad-11d1-80b4-00c04fd430c8`
+- `6ba7b811-9dad-11d1-80b4-00c04fd430c8`
+- `6ba7b812-9dad-11d1-80b4-00c04fd430c8`
+- `6ba7b814-9dad-11d1-80b4-00c04fd430c8`
+- `7c9e6679-7425-40de-944b-e07fc1f90ae7`
+- `a987fbc9-4bed-3078-cf07-9141ba07c9f3`
+- `b8659fc7-5b65-4c38-8a8b-bedd779e64e9`
+- `d9428888-122b-11e1-b85c-61cd3cbb3210`
+- `f47ac10b-58cc-4372-a567-0e02b2c3d479`
 
 ---
 
 ### Exemplos de Clientes via Terminal (3,4..5)]
-Abrir outros terminais simulando o cliente
+Abrir outros terminais na RAIZ simulando o cliente. 
 
 #### Teste 1: Voto válido (primeira votação)
 
@@ -74,19 +77,25 @@ cliente> Placar atualizado: { sim: 2, nao: 0 }
 Logs gerados no servidor:
 ```bash
 
-[2026-06-21 20:37:03] [SUCCESS] [VOTE_REGISTRATION] Voto registrado no placar
+[2026-06-28 18:36:48] [SUCCESS] [VOTE_VALIDATION] Vote validated and registered successfully
   ├─ token: TK_CLIEN***
-  ├─ voto: sim
-  ├─ total_sim: 2
-  └─ total_nao: 0
-[2026-06-21 20:37:03] [INFO] [VOTE_SUMMARY] Status da votação atualizado
-  ├─ sessao_id: assembleia-2026-06
-  ├─ votos_processados: 2
-  ├─ sim: 2 votos (100.0%)
-  ├─ nao: 0 votos (0.0%)
-  ├─ tokens_aptos: 1
-  ├─ tokens_votaram: 2
-  └─ tokens_totais: 3
+  ├─ vote: SIM
+  ├─ session_id: assembleia-2026-06
+  ├─ client_ip: ::ffff:127.0.0.1
+  └─ timestamp: 2026-06-28 18:36:48
+[2026-06-28 18:36:48] [SUCCESS] [VOTE_REGISTRATION] Vote registered in score
+  ├─ token: TK_CLIEN***
+  ├─ vote: SIM
+  ├─ total_sim: 3
+  └─ total_nao: 1
+[2026-06-28 18:36:48] [INFO] [VOTE_SUMMARY] Voting status updated
+  ├─ session_id: assembleia-2026-06
+  ├─ processed_votes: 4
+  ├─ sim: 3 votes (75.0%)
+  ├─ no: 1 votes (25.0%)
+  ├─ eligible_tokens: 7
+  ├─ voted_tokens: 4
+  └─ total_tokens: 11
 ```
 
 #### Teste 2: Voto duplicado rejeitado
@@ -102,22 +111,23 @@ cliente> Erro de votação: {
 Logs gerados no servidor:
 
 ```
-[2026-06-21 20:35:35] [ERROR] [VOTE_VALIDATION] Tentativa de voto duplicado rejeitada
-  ├─ tipo_erro: VOTO_DUPLICADO
+[2026-06-28 18:38:07] [ERROR] [VOTE_VALIDATION] Duplicate vote attempt rejected
+  ├─ error_type: DUPLICATE_VOTE
   ├─ token: TK_CLIEN***
-  ├─ voto_anterior: sim
-  ├─ voto_tentado: sim
-  ├─ tentativa_reversao: NAO
-  ├─ sessao_id: assembleia-2026-06
-  ├─ ip_cliente: ::ffff:127.0.0.1
-  ├─ timestamp_tentativa: 2026-06-21 20:35:35
-  └─ timestamp_voto_anterior: 2026-06-21 20:35:33
-[2026-06-21 20:35:35] [AUDITORIA] [AUDITORIA] Tentativa de voto duplicado detectada
-  ├─ token_suspeito: TK_CLIEN***
-  ├─ voto_anterior: sim
-  ├─ voto_tentado: sim
-  ├─ ip_origem: ::ffff:127.0.0.1
-  └─ status: Monitorado
+  ├─ previous_vote: SIM
+  ├─ attempted_vote: SIM
+  ├─ reversion_attempt: nao
+  ├─ session_id: assembleia-2026-06
+  ├─ client_ip: ::ffff:127.0.0.1
+  ├─ attempt_timestamp: 2026-06-28 18:38:07
+  └─ previous_vote_timestamp: 2026-06-28 18:36:48
+[2026-06-28 18:38:07] [AUDIT] [AUDIT] Duplicate vote attempt detected
+  ├─ suspicious_token: TK_CLIEN***
+  ├─ previous_vote: SIM
+  ├─ attempted_vote: SIM
+  ├─ source_ip: ::ffff:127.0.0.1
+  └─ status: Monitored
+
 ```
 
 #### Teste 3: Token inválido
@@ -128,20 +138,21 @@ Voto enviado: token=TK_CLIENT_0E0A6AC079DA459FA1988975EEF1CC | opcao=sim
 cliente> Erro de votação: {
   code: 'TOKEN_NAO_AUTORIZADO',
   message: 'Você só pode votar usando o token gerado para esta conexão.',
-  severity: 'HIGH'
-}
+  severity: 'HIGH'}
 
 Nos logs:
-[2026-06-21 20:33:04] [ERROR] [VOTE_VALIDATION] Tentativa de votação com token não autorizado
+[2026-06-28 18:38:42] [ERROR] [VOTE_VALIDATION] Voting attempt with unauthorized token rejected
+  ├─ error_type: UNAUTHORIZED_TOKEN
   ├─ token: TK_CLIEN***
-  ├─ sessao_id: assembleia-2026-06
-  ├─ ip_cliente: ::ffff:127.0.0.1
-  └─ acao_tomada: Voto rejeitado
-[2026-06-21 20:33:04] [ALERT] [SEGURANCA] Possível tentativa de fraude detectada
-  ├─ tipo: TOKEN_NAO_AUTORIZADO
-  ├─ token_suspeito: TK_CLIEN***
-  ├─ ip_origem: ::ffff:127.0.0.1
-  └─ status: Flagged para investigação
+  ├─ session_id: assembleia-2026-06
+  ├─ client_ip: ::ffff:127.0.0.1
+  └─ action_taken: Vote rejected
+[2026-06-28 18:38:42] [AUDIT] [AUDIT] Voting attempt with unauthorized token detected
+  ├─ type: UNAUTHORIZED_TOKEN
+  ├─ suspicious_token: TK_CLIEN***
+  ├─ source_ip: ::ffff:127.0.0.1
+  └─ status: Monitored
+
 ```
 
 ---
@@ -157,14 +168,14 @@ Os logs são gravados em **stdout** (exibidos nos respectivos terminais) e em ar
 | `auditoria.log` | Tentativas de fraude e duplicidade |
 
 Formato:
-
+f
 ```
 [TIMESTAMP] [NIVEL] [MODULO] Mensagem
   ├─ campo: valor
   └─ campo: valor
 ```
 
-Níveis: `INFO`, `SUCCESS`, `WARNING`, `ERROR`, `ALERT`, `AUDITORIA`
+Níveis: `INFO`, `SUCCESS`, `WARNING`, `ERROR`, `ALERT`, `AUDIT`
 
 ---
 
@@ -295,10 +306,8 @@ Dentro da trava, `processVote` executa de forma serializada por sessão: valida 
 ### Como comprovar
 
 ```bash
-# Testes unitários de concorrência (Jest)
 npm run test
 
-# Stress test HTTP com K6 (servidor deve estar rodando em :3001)
 k6 run tests/load/voting-stress.js
 ```
 
@@ -395,23 +404,28 @@ O servidor mantém as sessões ativas em memória volátil com o seguinte esquem
 
 ```json
 {
-  "sessao_id": "string",
-  "placar_atual": {
-    "sim": "number",
-    "nao": "number"
+  "session_id": "assembleia-2026-06",
+  "current_score": {
+    "sim": 3,
+    "nao": 1
   },
-  "tokens_autorizados": ["string"],
-  "tokens_que_ja_votaram": ["string"],
-  "votos_realizados": [
-    {
-      "token": "string",
-      "voto": "sim | nao",
-      "timestamp": "string",
-      "sessao_id": "string",
-      "ip": "string",
-      "socket_id": "string"
-    }
-  ]
+  "authorized_tokens": [
+    "6ba7b811-9dad-11d1-80b4-00c04fd430c8",
+    "6ba7b814-9dad-11d1-80b4-00c04fd430c8",
+    "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "a987fbc9-4bed-3078-cf07-9141ba07c9f3",
+    "b8659fc7-5b65-4c38-8a8b-bedd779e64e9",
+    "d9428888-122b-11e1-b85c-61cd3cbb3210",
+    "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+  ],
+  "voted_tokens": [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "6ba7b812-9dad-11d1-80b4-00c04fd430c8",
+    "TK_CLIENT_3BD45ECEB2DE4B88A069224A88B7A7D1"
+  ],
+  "started_at": 1782681671563,
+  "duration_seconds": 180
 }
 ```
 ## Como Inicializar uma Sessão
@@ -419,34 +433,36 @@ O servidor mantém as sessões ativas em memória volátil com o seguinte esquem
 POST /api/sessions
 Content-Type: application/json
 
+Body: 
 ```json
 {
+  {
   "session_id": "ASSEMBLY_CONDOMINIO_JUN_2026",
-  "opcoes": [
-    "sim",
-    "nao"
-  ],
-  "tokens_autorizados": [
+
+  "authorized_tokens": [
     "TK_001",
     "TK_002",
     "TK_003"
   ]
+}
+
+}
+```
+
+Resposta:
+
+```json
+{
+  "session_id": "ASSEMBLY_CONDOMINIO_JUN_2026",
+  "status": "OPEN",
+  "message": "Session created successfully"
 }
 ```
 
 Response: 201
 { "session_id": "...", "status": "OPEN" }
 
----
 
-| Campo | Descrição |
-|---|---|
-| `sessao_id` | Identificador único da assembleia em curso |
-| `placar_atual` | Contador em tempo real mapeando opções para totais de votos |
-| `tokens_autorizados` | Lista de controle de acesso com tokens autorizados a votar |
-| `tokens_que_ja_votaram` | Ledger antifraude com tokens que já submeteram um voto |
-
----
 
 ## Regras de Domínio & Lógica de Validação
 
@@ -542,7 +558,7 @@ O K6 simula dezenas de clientes enviando votos **simultaneamente via HTTP** (`PO
 **Executar:**
 
 ```bash
-npm run dev   # terminal 1 — porta 3001
+npm run dev   
 k6 run tests/load/voting-stress.js
 k6 run -e VUS=100 tests/load/voting-stress.js   # 100 votos paralelos
 ```
@@ -588,36 +604,95 @@ k6 run -e VUS=100 tests/load/voting-stress.js   # 100 votos paralelos
 
 ##  Como Executar
 
-### Pré-requisitos
+O projeto é estruturado como um monorepo. Você pode iniciar os serviços tanto a partir da raiz quanto entrando em cada diretório específico.
 
+### 1. Pré-requisitos
 - Node.js 18+
 - npm
+- Lib async-lock (ver guia no readme)
+- Lib toastify por npm
 
-### Instalação
-
-Clone o repositório e instale as dependências de todo o monorepo:
-
+### 2. Instalação
+A partir do diretório raiz:
 ```bash
 npm install
 ```
 
-### Comandos principais
+### 3. Executando os Serviços em Desenvolvimento
 
-| Comando | Descrição |
+Você precisará de pelo menos dois terminais abertos (um para o backend e outro para o frontend):
+
+* **Servidor Backend (Porta 3001)**
+  * A partir da raiz: `npm run dev:server` (ou `npm run dev`)
+  * Ou acessando a pasta:
+    ```bash
+    cd apps/server
+    npm run dev
+    ```
+
+* **Frontend Web (Porta 3000)**
+  * A partir da raiz: `npm run dev:web`
+  * Ou acessando a pasta:
+    ```bash
+    cd apps/web
+    npm run dev
+    ```
+
+### 4. Outros Comandos Importantes
+
+| Comando (Executado da Raiz) | Descrição |
 |---|---|
-| `npm run dev` | Inicia servidor Express + Socket.io (porta 3001) |
-| `npm run client` | Cliente manual independente, gera token automático e permite votar via terminal |
-| `npm run console` | Console interativo local de autenticação e votação, incluindo `SESSION` |
-| `npm run vote:test` | Cliente WebSocket de teste (envia um CAST_VOTE) |
-| `npm test` | Testes unitários Jest |
-| `npm start` | Servidor compilado (requer `npm run build` antes) |
+| `npm run client` | Cliente interativo de terminal para testar votações |
+| `npm run test` | Executa todos os testes unitários com Jest |
+| `npm run vote:test` | Cliente de teste rápido para submeter um voto via WebSocket |
 
-| Serviço | URL padrão |
-|---|---|
-| Backend (Express + Socket.io) | `http://localhost:3001` |
-| Frontend (Next.js) | `http://localhost:3000` |
+---
 
-### Cliente manual independente
+##  Interfaces Disponíveis 
+
+Com o frontend (`apps/web`) e o backend (`apps/server`) em execução, você pode acessar as seguintes interfaces no navegador:
+
+* **Página Inicial (`http://localhost:3000/`)**:
+  Portal de entrada da Assembleia Digital que conecta para todas as interfaces disponíveis do sistema.
+
+* **Cabine de Votação (`http://localhost:3000/voting-booth`)**:
+  Interface onde os eleitores inserem seus tokens privados, escolhem seu voto (`SIM` ou `NÃO`) e realizam a submissão de forma segura.
+
+* **Painel de Resultados (`http://localhost:3000/painel`)**:
+  Painel público e dinâmico que exibe a apuração de votos em tempo real, atualizado instantaneamente via WebSocket conforme novos votos válidos são processados.
+
+* **Comandos Gerenciais (`http://localhost:3000/commands`)**:
+  Painel administrativo para monitorar a sessão, permitindo visualizar os tokens autorizados remanescentes, os votos registrados (tokens que já votaram e data/hora do voto) e o placar atual.
+
+---
+
+##  Guia de Testes Práticos (Interface Web)
+
+Após iniciar o **servidor backend** (`localhost:3001`) e o **frontend web** (`localhost:3000`), você pode simular a assembleia diretamente pelo navegador.
+
+###  Múltiplos Eleitores Simultâneos
+Para simular vários eleitores votando em tempo real:
+1. Abra **múltiplas abas ou janelas anônimas** do seu navegador acessando a Cabine de Votação:
+   `http://localhost:3000/voting-booth`
+2. Em cada aba, escolha ou digite um **Token Estático**, podendo fazer parte da lista de tokens estáticos.
+3. Escolha uma opção (`SIM` ou `NÃO`) e submeta o voto. Ele será registrado e validado instantaneamente.
+
+### Painel de Resultados 
+Para acompanhar a apuração em tempo real:
+1. Abra uma aba separada no link:
+   `http://localhost:3000/painel`
+2. Conforme os votos são enviados nas outras abas da *Cabine de Votação*, o painel será atualizado automaticamente, exibindo o placar e as porcentagens em tempo real com alertas visuais.
+
+###  Simulação de Fraude (Voto Duplicado)
+Você pode comprovar os mecanismos de prevenção a fraudes (Mutex com `async-lock` e validação antifraude):
+1. Em qualquer aba da **Cabine de Votação** (`http://localhost:3000/voting-booth`), insira um token que **já tenha sido utilizado** para votar.
+2. Tente votar novamente.
+3. O sistema recusará o voto e exibirá uma notificação/alerta de confirmado ou rejeitado com a respectiva mensagem de erro de duplicidade.
+4. No terminal do servidor (`apps/server`), você verá os logs de auditoria registrando a tentativa de duplicidade com detalhes como IP do cliente e data/hora do voto anterior. Também pode ser visto na pasta apps/server/logs.
+
+---
+
+###  Cliente manual independente (Terminal)
 
 Para conectar um cliente novo em outro terminal, gerar um token próprio e votar manualmente, rode:
 
@@ -628,14 +703,14 @@ npm run client
 O cliente abre uma sessão Socket.io com o servidor, recebe um token gerado automaticamente no mesmo padrão do console e passa a aceitar apenas comandos de votação no próprio terminal:
 
 ```text
-vote sim     # envia voto para sim
-vote nao     # envia voto para nao
+vote <token> SIM    # envia voto para sim
+vote <token> nao    # envia voto para nao
 exit         # encerra o cliente
 ```
 
 Cada conexão, autorização de token e voto aceito/rejeitado fica registrada nos logs do servidor.
 
-Para testar duplicidade, use o mesmo cliente e execute `vote A` duas vezes. A segunda tentativa deve ser rejeitada como voto duplicado.
+Para testar duplicidade, use o mesmo cliente e execute `vote SIM` duas vezes. A segunda tentativa deve ser rejeitada como voto duplicado.
 
 
 ##  Autenticação em Memória & Prevenção de Fraude 
@@ -707,29 +782,36 @@ k6 run tests/load/voting-stress.js
 
 ---
 
-##  Estrutura de Diretórios
+## Estrutura de Diretórios
 
 ```
 ├── apps/
 │   ├── web/                        # Frontend — Next.js + React
-│   │   └── src/app/                # App Router (pages e layouts)
+│   │   └── src/
+│   │       ├── app/                # Next.js App Router (páginas /voting-booth, /painel, /commands)
+│   │       ├── components/         # Componentes React de UI (Cabine, Painel de Resultados)
+│   │       ├── hooks/              # Hooks customizados (useVoter, useAssembly, useTimer)
+│   │       └── lib/                # APIs, sockets e lógica compartilhada do cliente
 │   │
 │   └── server/                     # Backend — Node.js + Express + Socket.io
 │       ├── logs/                   # Logs operacionais (app, erros, auditoria)
 │       └── src/
-│           ├── console.ts          # Console interativo de testes (Entrega 2)
-│           ├── domain/             # Parsers, validadores, lock.service.ts e regras de negócio
-│           ├── handlers/           # Tratamento de votos e logging
-│           ├── loggers/            # Sistema de logs estruturados
-│           ├── repository/         # Estado efêmero em memória (sessões ativas)
-│           └── server.ts           # Entry point — Express + Socket.io
+│           ├── domain/             # Modelos, validadores, locks do domínio e regras de negócio
+│           ├── handlers/           # Handlers e formatadores de logging para socket/API
+│           ├── loggers/            # Utilitários de logs estruturados em console/arquivos
+│           ├── repository/         # Repositório de estado em memória (sessões ativas)
+│           ├── routes/             # Rotas Express HTTP (API)
+│           ├── sockets/            # Configuração e listeners do Socket.io
+│           ├── token/              # Serviço de geração e validação de tokens
+│           └── server.ts           # Ponto de entrada do backend
 │
-├── script.ts                       # Cliente WebSocket de teste rápido
+├── client.ts                       # Console interativo de terminal para testar votações
+├── script.ts                       # Script de teste rápido do cliente WebSocket
 ├── tests/
 │   └── load/
-│       └── voting-stress.js        # Script de carga K6
+│       └── voting-stress.js        # Script de teste de carga concorrente via K6
 │
-├── package.json                    # Workspaces do monorepo
+├── package.json                    # Definições de workspaces do npm e scripts do monorepo
 └── README.md
 ```
 

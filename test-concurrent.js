@@ -68,7 +68,7 @@ async function main() {
   const scoreOk =
     session.total_voted === TOTAL_VOTES && successes === TOTAL_VOTES;
   console.log(
-    `\n${scoreOk ? "✅ LOCKS WORKING" : "❌ CONCURRENCY PROBLEM DETECTED"}`
+    `\n${scoreOk ? "LOCKS WORKING" : "CONCURRENCY PROBLEM DETECTED"}`
   );
 
 }

@@ -20,8 +20,8 @@ function createTestSession(): VotingSession {
 
 describe("vote-parser", () => {
   it("accepts payload in format CAST_VOTE|<token>|<option>", () => {
-    const parsed = parseCastVote(formatCastVote(TOKEN_USER1, "sim"));
-    expect(parsed).toEqual({ token: TOKEN_USER1, option: "sim" });
+    const parsed = parseCastVote(formatCastVote(TOKEN_USER1, "SIM"));
+    expect(parsed).toEqual({ token: TOKEN_USER1, option: "SIM" });
   });
 
   it("rejects malformed payload", () => {
@@ -35,7 +35,7 @@ describe("vote-parser", () => {
 describe("vote-validator", () => {
   it("registers valid vote and increments score", () => {
     const session = createTestSession();
-    const result = processVote(session, formatCastVote(TOKEN_USER1, "sim"));
+    const result = processVote(session, formatCastVote(TOKEN_USER1, "SIM"));
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -47,7 +47,7 @@ describe("vote-validator", () => {
 
   it("blocks unauthorized token", () => {
     const session = createTestSession();
-    const result = processVote(session, formatCastVote(TOKEN_INTRUSO, "nao"));
+    const result = processVote(session, formatCastVote(TOKEN_INTRUSO, "NÃO"));
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -57,8 +57,8 @@ describe("vote-validator", () => {
 
   it("blocks duplicate vote", () => {
     const session = createTestSession();
-    processVote(session, formatCastVote(TOKEN_USER1, "sim"));
-    const result = processVote(session, formatCastVote(TOKEN_USER1, "nao"));
+    processVote(session, formatCastVote(TOKEN_USER1, "SIM"));
+    const result = processVote(session, formatCastVote(TOKEN_USER1, "NÃO"));
 
     expect(result.success).toBe(false);
     if (!result.success) {

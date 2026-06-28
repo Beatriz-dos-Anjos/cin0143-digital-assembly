@@ -114,10 +114,11 @@ export function processVote(
 
   try {
     const previousScore = { ...session.current_score };
+    const scoreKey = option === "SIM" ? "sim" : "nao";
 
     const newScore = {
       ...previousScore,
-      [option]: previousScore[option] + 1,
+      [scoreKey]: previousScore[scoreKey] + 1,
     };
 
     session.current_score = newScore;

@@ -40,7 +40,7 @@ export default function HomePage() {
 
       <div className="grid w-full gap-4 sm:grid-cols-2">
         <Link
-          href="/cabine"
+          href="/voting-booth"
           className="group relative overflow-hidden rounded-3xl border border-border bg-card p-7 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:shadow-[0_8px_32px_hsl(220_80%_60%/0.12)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
         >
           <div
@@ -98,7 +98,7 @@ export default function HomePage() {
         </Link>
 
         <Link
-          href="/comandos"
+          href="/commands"
           className="group relative overflow-hidden rounded-3xl border border-border bg-card p-7 transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-[0_8px_32px_hsl(160_70%_45%/0.10)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 sm:col-span-2"
         >
           <div

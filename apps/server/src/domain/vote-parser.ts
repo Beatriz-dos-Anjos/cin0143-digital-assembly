@@ -1,6 +1,6 @@
 import { CAST_VOTE_PREFIX, ParsedCastVote, VALID_OPTIONS, VoteOption } from "./types";
 
-const CAST_VOTE_PATTERN = /^CAST_VOTE\|([^|]+)\|(sim|nao)$/;
+const CAST_VOTE_PATTERN = /^CAST_VOTE\|([^|]+)\|(sim|nao|não)$/i;
 
 function isValidTokenLength(token: string): boolean {
   return token.length >= 32 && token.length <= 256;
@@ -27,11 +27,16 @@ export function parseCastVote(payload: unknown): ParsedCastVote | null {
     return null;
   }
 
-  if (!isValidOption(option)) {
+  let normalizedOption = option.trim().toUpperCase();
+  if (normalizedOption === "NAO") {
+    normalizedOption = "NÃO";
+  }
+
+  if (!isValidOption(normalizedOption)) {
     return null;
   }
 
-  return { token: token.trim(), option };
+  return { token: token.trim(), option: normalizedOption };
 }
 
 export function isValidOption(value: unknown): value is VoteOption {

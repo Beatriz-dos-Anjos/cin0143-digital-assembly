@@ -27,6 +27,8 @@ export function ResultsPanel() {
   const firstRenderRef = useRef(true)
 
   useEffect(() => {
+    if (!state) return
+
     // Ignore first render (initial state at zero)
     if (firstRenderRef.current) {
       firstRenderRef.current = false
@@ -43,7 +45,7 @@ export function ResultsPanel() {
     }
 
     previousScoreRef.current = { ...score }
-  }, [score.sim, score.nao])
+  }, [score.sim, score.nao, state])
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-10 sm:py-16">

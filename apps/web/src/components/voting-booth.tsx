@@ -69,6 +69,8 @@ export function VotingBooth() {
   const score = state?.current_score ?? { sim: 0, nao: 0 }
 
   useEffect(() => {
+    if (!state) return
+
     if (firstRenderRef.current) {
       firstRenderRef.current = false
       previousScoreRef.current = { ...score }
@@ -78,13 +80,13 @@ export function VotingBooth() {
     const previous = previousScoreRef.current
 
     if (score.sim > previous.sim) {
-      toast.success("New sim vote registered", { autoClose: 4000 })
+      toast.success("Novo voto sim registrado", { autoClose: 4000 })
     } else if (score.nao > previous.nao) {
-      toast.error("New nao vote registered", { autoClose: 4000 })
+      toast.error("Novo voto não registrado", { autoClose: 4000 })
     }
 
     previousScoreRef.current = { ...score }
-  }, [score.sim, score.nao])
+  }, [score.sim, score.nao, state])
 
   useEffect(() => {
     if (token && !tokensList.includes(token)) {
@@ -281,7 +283,7 @@ export function VotingBooth() {
                   <AlertCircle className="size-4" aria-hidden />
                 )
               }
-              title={feedback.type === "success" ? "Vote confirmed" : "Vote rejected"}
+              title={feedback.type === "success" ? "Voto confirmado" : "Voto rejeitado"}
               description={feedback.message}
             />
           ) : null}
