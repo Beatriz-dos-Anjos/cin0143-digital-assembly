@@ -114,7 +114,7 @@ function startInteractivePrompt(): void {
 
       const [tokenArg, optionArg] = parts;
       const option = optionArg.toUpperCase();
-      const voteOption = option === "sim" ? "sim" : option === "nao" ? "nao" : undefined;
+      const voteOption = option === "SIM" ? "SIM" : option === "NÃO" ? "NÃO" : undefined;
 
       if (!voteOption) {
         console.log("Usage: vote <token> <sim|nao>");

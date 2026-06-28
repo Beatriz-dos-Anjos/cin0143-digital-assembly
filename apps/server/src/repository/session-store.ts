@@ -65,19 +65,6 @@ export class SessionRepository {
 
     return session;
   }
-  
-  create(session: VotingSession): void {
-    if (this.sessions.has(session.session_id)) {
-      throw new Error(`Session ${session.session_id} already exists`);
-    }
-
-    this.sessions.set(session.session_id, session);
-
-    logger.success("SESSION_STORE", "New session created", {
-      session_id: session.session_id,
-      total_tokens: session.authorized_tokens.length,
-    });
-  }
 
   createFromPayload(payload: {
     session_id: string;
@@ -117,21 +104,6 @@ export class SessionRepository {
     return session;
   }
 
-  removeToken(sessionId: string, token: string): VotingSession | undefined {
-    const session = this.sessions.get(sessionId);
-
-    if (!session) {
-      return undefined;
-    }
-
-    const index = session.authorized_tokens.indexOf(token);
-    if (index > -1) {
-      session.authorized_tokens.splice(index, 1);
-    }
-
-    return session;
-  }
-
   findVoteByToken(session: VotingSession, token: string): RegisteredVote | undefined {
     return session.votes_cast.find((vote) => vote.token === token);
   }
@@ -140,9 +112,6 @@ export class SessionRepository {
     return Array.from(this.sessions.values());
   }
 
-  listFiltered(predicate: (session: VotingSession) => boolean): VotingSession[] {
-    return Array.from(this.sessions.values()).filter(predicate);
-  }
 
   getGlobalStatistics() {
     const sessions = this.list();
@@ -179,11 +148,6 @@ export class SessionRepository {
     });
 
     return session;
-  }
-
-  clear(): void {
-    this.sessions.clear();
-    this.initializeDefaultSession();
   }
 }
 

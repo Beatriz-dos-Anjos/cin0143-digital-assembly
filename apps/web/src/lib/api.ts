@@ -127,3 +127,53 @@ export async function resetSession(
     { method: "POST" },
   )
 }
+
+export interface AuthorizedTokensResponse {
+  authorized_tokens: string[]
+}
+
+export interface RegisteredVotesResponse {
+  votes: { token: string; vote: string; timestamp: string }[]
+}
+
+export interface PlacarResponse {
+  sim: number
+  nao: number
+}
+
+export interface SessionSnapshotResponse extends SessionTimerFields {
+  session_id: string
+  current_score: ServerScore
+  authorized_tokens: string[]
+  voted_tokens: string[]
+}
+
+export async function getAuthorizedTokens(
+  sessionId: string,
+): Promise<AuthorizedTokensResponse> {
+  return request<AuthorizedTokensResponse>(
+    `/api/tokens?sessionId=${encodeURIComponent(sessionId)}`,
+  )
+}
+
+export async function getRegisteredVotes(
+  sessionId: string,
+): Promise<RegisteredVotesResponse> {
+  return request<RegisteredVotesResponse>(
+    `/api/votes?sessionId=${encodeURIComponent(sessionId)}`,
+  )
+}
+
+export async function getScore(sessionId: string): Promise<PlacarResponse> {
+  return request<PlacarResponse>(
+    `/api/score?sessionId=${encodeURIComponent(sessionId)}`,
+  )
+}
+
+export async function getSessionSnapshot(
+  sessionId: string,
+): Promise<SessionSnapshotResponse> {
+  return request<SessionSnapshotResponse>(
+    `/api/session?sessionId=${encodeURIComponent(sessionId)}`,
+  )
+}

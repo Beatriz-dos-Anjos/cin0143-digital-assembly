@@ -15,7 +15,7 @@ import {
   type SessionResetPayload,
 } from "@/src/lib/socket"
 
-const EMPTY_SCORE: Score = { sim: 0, NO: 0 }
+const EMPTY_SCORE: Score = { sim: 0, nao: 0 }
 
 export function useSocketSession() {
   const [state, setState] = useState<AssemblyState>({

@@ -12,7 +12,13 @@ import {
   RefreshCw,
   ChevronRight,
 } from "lucide-react"
-import { API_URL, DEFAULT_SESSION_ID } from "@/src/lib/api"
+import {
+  DEFAULT_SESSION_ID,
+  getAuthorizedTokens,
+  getRegisteredVotes,
+  getScore,
+  getSessionSnapshot,
+} from "@/src/lib/api"
 
 type CommandId = "tokens" | "votes" | "placar" | "session"
 
@@ -80,14 +86,23 @@ export default function ComandosPage() {
     setResults((prev) => ({ ...prev, [cmd.id]: { status: "loading" } }))
 
     try {
-      const res = await fetch(
-        `${API_URL}${cmd.endpoint}?sessionId=${encodeURIComponent(DEFAULT_SESSION_ID)}`,
-      )
-      if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(body?.error ?? `Request failed (HTTP ${res.status})`)
+      let data: unknown
+      switch (cmd.id) {
+        case "tokens":
+          data = await getAuthorizedTokens(DEFAULT_SESSION_ID)
+          break
+        case "votes":
+          data = await getRegisteredVotes(DEFAULT_SESSION_ID)
+          break
+        case "placar":
+          data = await getScore(DEFAULT_SESSION_ID)
+          break
+        case "session":
+          data = await getSessionSnapshot(DEFAULT_SESSION_ID)
+          break
+        default:
+          throw new Error("Comando desconhecido")
       }
-      const data = await res.json()
       setResults((prev) => ({ ...prev, [cmd.id]: { status: "success", data } }))
     } catch (err) {
       setResults((prev) => ({

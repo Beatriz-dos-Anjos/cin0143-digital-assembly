@@ -1,7 +1,7 @@
 /**
  * Available vote option
  */
-export type VoteOption = "sim" | "nao";
+export type VoteOption = "SIM" | "NÃO";
 export type ErrorSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type VoteErrorCode =
   | "FORMATO_INVALIDO"
@@ -140,7 +140,7 @@ export const CAST_VOTE_PREFIX = "CAST_VOTE";
 /**
  * Valid vote options
  */
-export const VALID_OPTIONS: readonly VoteOption[] = ["sim", "nao"];
+export const VALID_OPTIONS: readonly VoteOption[] = ["SIM", "NÃO"];
 
 /**
  * WebSocket events

@@ -9,7 +9,7 @@ const TOKEN_INTRUSO = "c".repeat(32);
 function createTestSession(): VotingSession {
   return {
     session_id: "test-session",
-    current_score: { sim: 0, no: 0 },
+    current_score: { sim: 0, nao: 0 },
     authorized_tokens: [TOKEN_USER1, TOKEN_USER2],
     voted_tokens: [],
     votes_cast: [],
@@ -40,7 +40,7 @@ describe("vote-validator", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.score.sim).toBe(1);
-      expect(result.score.no).toBe(0);
+      expect(result.score.nao).toBe(0);
     }
     expect(session.voted_tokens).toContain(TOKEN_USER1);
   });
@@ -51,7 +51,7 @@ describe("vote-validator", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.code).toBe("UNAUTHORIZED_TOKEN");
+      expect(result.error.code).toBe("TOKEN_NAO_AUTORIZADO");
     }
   });
 
@@ -62,7 +62,7 @@ describe("vote-validator", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.code).toBe("DUPLICATE_VOTE");
+      expect(result.error.code).toBe("VOTO_DUPLICADO");
     }
   });
 });

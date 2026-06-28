@@ -177,23 +177,3 @@ export function logTokenGenerated(token: string, sessionId: string): void {
     generated_at: formatTimestamp(),
   });
 }
-
-export function logSystemError(error: Error, context: string): void {
-  logger.error("SYSTEM", `Critical error in ${context}`, {
-    error_message: error.message,
-    error_stack: error.stack?.split("\n")[0] ?? "N/A",
-    context,
-  });
-}
-
-export function logValidationError(
-  fieldName: string,
-  expectedType: string,
-  receivedValue: unknown
-): void {
-  logger.warning("VALIDATION", "Error validating user input", {
-    field: fieldName,
-    expected_type: expectedType,
-    received_type: typeof receivedValue,
-  });
-}

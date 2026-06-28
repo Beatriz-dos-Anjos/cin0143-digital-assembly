@@ -51,13 +51,3 @@ export function formatCastVote(token: string, option: VoteOption): string {
 export function isCastVoteFormat(payload: unknown): boolean {
   return parseCastVote(payload) !== null;
 }
-
-export function extractTokenFromPayload(payload: unknown): string | null {
-  const parsed = parseCastVote(payload);
-  return parsed?.token ?? null;
-}
-
-export function extractOptionFromPayload(payload: unknown): VoteOption | null {
-  const parsed = parseCastVote(payload);
-  return parsed?.option ?? null;
-}

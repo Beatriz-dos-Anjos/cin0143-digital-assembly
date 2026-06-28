@@ -62,7 +62,7 @@ describe("withSessionLock — concurrency", () => {
 
     const successes = results.filter((r) => r.success);
     const duplicates = results.filter(
-      (r) => !r.success && r.error.code === "DUPLICATE_VOTE"
+      (r) => !r.success && r.error.code === "VOTO_DUPLICADO"
     );
 
     expect(successes).toHaveLength(1);
