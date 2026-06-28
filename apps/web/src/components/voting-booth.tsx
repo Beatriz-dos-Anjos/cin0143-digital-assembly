@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlertCircle,
   ArrowLeft,
@@ -16,7 +16,6 @@ import "react-toastify/dist/ReactToastify.css"
 import { type Opcao } from "@/src/lib/assembly"
 import { useVoter } from "@/src/hooks/use-voter"
 import { useAssembly } from "@/src/hooks/use-assembly"
-import { API_URL } from "@/src/lib/api"
 import { useCronometro, syncSessionTimer } from "@/src/hooks/use-cronometro"
 import {
   ApiRequestError,
@@ -62,6 +61,7 @@ export function VotingBooth() {
 
   const [tokensList, setTokensList] = useState<string[]>(TOKENS_AUTORIZADOS_INICIAIS)
   const [tokensVotados, setTokensVotados] = useState<string[]>([])
+  const [reiniciando, setReiniciando] = useState(false)
 
   // Toast ao mudar placar (mesmo mecanismo do painel)
   const placarAnteriorRef = useRef({ SIM: 0, NAO: 0 })
@@ -91,6 +91,7 @@ export function VotingBooth() {
       setTokensList((prev) => [...prev, token])
     }
   }, [token, tokensList])
+
   function adicionarTokenGerado(novoToken: string) {
     setTokensList((prev) =>
       prev.includes(novoToken) ? prev : [...prev, novoToken],
@@ -140,24 +141,18 @@ export function VotingBooth() {
   const desabilitadoGerar =
     encerrada || !connected || gerandoToken || votando !== null
 
-  function handleReiniciar() {
-    setResetKey((k) => k + 1)
-    setToken("")
-  }
-
-  async function gerarNovoToken() {
-    if (gerandoToken) return
-    await gerarToken()
   async function handleReiniciar() {
     if (reiniciando) return
 
     limparEstado()
     setTokensVotados([])
     setTokensList([...TOKENS_AUTORIZADOS_INICIAIS])
+    setToken("")
     setReiniciando(true)
 
     try {
       const result = await resetSession(sessaoId || DEFAULT_SESSAO_ID)
+      setResetKey((k) => k + 1)
       syncSessionTimer({
         iniciada_em: result.iniciada_em,
         duracao_segundos: result.duracao_segundos,
