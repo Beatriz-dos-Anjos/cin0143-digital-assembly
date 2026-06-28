@@ -1,36 +1,36 @@
 import { io, type Socket } from "socket.io-client"
-import type { ServerPlacar } from "@/src/lib/api"
-import { DURACAO_SEGUNDOS } from "@/src/lib/timer"
+import type { ServerScore } from "@/src/lib/api"
+import { DURATION_SECONDS } from "@/src/lib/timer"
 
 export const SERVER_URL =
   process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3001"
 
-/** Eventos recebidos do servidor (somente listeners no front). */
+/** Events received from server (listeners only on frontend). */
 export const SOCKET_EVENTS = {
   CONNECTION_ACK: "connection_ack",
   SESSION_RESET: "session_reset",
 } as const
 
-export type { ServerPlacar }
+export type { ServerScore }
 
 export interface SessionTimerFields {
-  iniciada_em: number
-  duracao_segundos: number
+  started_at: number
+  duration_seconds: number
 }
 
 export interface ConnectionAck extends SessionTimerFields {
   message: string
-  sessao_id: string
-  placar_atual: ServerPlacar
+  session_id: string
+  current_score: ServerScore
 }
 
 export interface SessionResetPayload extends SessionTimerFields {
-  sessao_id: string
-  placar_atual: ServerPlacar
+  session_id: string
+  current_score: ServerScore
 }
 
-export function placarChannel(sessaoId: string): string {
-  return `placar_atualizado_${sessaoId}`
+export function scoreChannel(sessionId: string): string {
+  return `score_updated_${sessionId}`
 }
 
 let socket: Socket | null = null
@@ -59,4 +59,4 @@ export function disconnectSocket(): void {
   }
 }
 
-export { DURACAO_SEGUNDOS }
+export { DURATION_SECONDS }

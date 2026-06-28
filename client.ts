@@ -5,8 +5,8 @@ import { io } from "socket.io-client";
 
 type ConnectionAck = {
   message: string;
-  sessao_id: string;
-  placar_atual: {
+  session_id: string;
+  current_score: {
     sim: number;
     nao: number;
   };
@@ -14,21 +14,22 @@ type ConnectionAck = {
 
 type ClientRegistered = {
   token: string;
-  sessao_id: string;
+  session_id: string;
 };
 
 type SessionData = {
-  sessao_id: string;
-  placar_atual: {
+  session_id: string;
+  current_score: {
     sim: number;
     nao: number;
   };
-  tokens_autorizados: string[];
-  tokens_que_ja_votaram: string[];
+  authorized_tokens: string[];
+  voted_tokens: string[];
 };
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
-const GENERATED_TOKEN = `TK_CLIENT_${randomUUID().replace(/-/g, "").toUpperCase()}`;const socket = io(SERVER_URL, {
+const GENERATED_TOKEN = `TK_CLIENT_${randomUUID().replace(/-/g, "").toUpperCase()}`;
+const socket = io(SERVER_URL, {
   autoConnect: true,
   reconnection: true,
 });
@@ -39,19 +40,19 @@ let rl: readline.Interface | null = null;
 let scoreListenerAttached = false;
 
 function printHelp(): void {
-  console.log("Comandos:");
-  console.log("  token               - mostra o token gerado para este cliente");
-  console.log("  vote <token> Sim      - envia voto para sim usando o token informado");
-console.log("  vote <token> Não     - envia voto para não usando o token informado");
-  console.log("  session             - solicita ao servidor o snapshot da sessão");
-  console.log("  status              - mostra sessão e token atuais");
-  console.log("  help                - exibe esta ajuda");
-  console.log("  exit                - encerra o cliente");
+  console.log("Commands:");
+  console.log("  token               - shows the token generated for this client");
+  console.log("  vote <token> sim    - sends a sim vote using the specified token");
+  console.log("  vote <token> nao    - sends a nao vote using the specified token");
+  console.log("  session             - requests the session snapshot from the server");
+  console.log("  status              - shows current session and token");
+  console.log("  help                - displays this help");
+  console.log("  exit                - exits the client");
 }
 
 function ensurePrompt(): void {
   if (rl) {
-    rl.setPrompt("cliente> ");
+    rl.setPrompt("client> ");
     rl.prompt();
   }
 }
@@ -62,8 +63,8 @@ function attachScoreListener(sessionId: string): void {
   }
 
   scoreListenerAttached = true;
-  socket.on(`placar_atualizado_${sessionId}`, (placar) => {
-    console.log("Placar atualizado:", placar);
+  socket.on(`score_updated_${sessionId}`, (score) => {
+    console.log("Score updated:", score);
   });
 }
 
@@ -75,7 +76,7 @@ function startInteractivePrompt(): void {
   rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: "cliente> ",
+    prompt: "client> ",
   });
 
   rl.on("line", (line) => {
@@ -87,49 +88,49 @@ function startInteractivePrompt(): void {
     }
 
     const firstSpaceIndex = trimmed.indexOf(" ");
-const command = firstSpaceIndex === -1 ? trimmed : trimmed.slice(0, firstSpaceIndex);
-const rawArg = firstSpaceIndex === -1 ? undefined : trimmed.slice(firstSpaceIndex + 1).trim();
+    const command = firstSpaceIndex === -1 ? trimmed : trimmed.slice(0, firstSpaceIndex);
+    const rawArg = firstSpaceIndex === -1 ? undefined : trimmed.slice(firstSpaceIndex + 1).trim();
     const normalized = command.toLowerCase();
 
     if (normalized === "help") {
       printHelp();
     } else if (normalized === "token") {
-      console.log(`Token atual: ${currentToken}`);
+      console.log(`Current token: ${currentToken}`);
     } else if (normalized === "status") {
-      console.log(`Sessão: ${currentSessionId}`);
+      console.log(`Session: ${currentSessionId}`);
       console.log(`Token: ${currentToken}`);
-      console.log(`Servidor: ${SERVER_URL}`);
+      console.log(`Server: ${SERVER_URL}`);
     } else if (normalized === "session") {
       socket.emit("session_request");
-      console.log("Solicitando snapshot da sessão ao servidor...");
-   } else if (normalized === "vote") {
-  const parts = rawArg?.trim().split(/\s+/) ?? [];
+      console.log("Requesting session snapshot from the server...");
+    } else if (normalized === "vote") {
+      const parts = rawArg?.trim().split(/\s+/) ?? [];
 
-  if (parts.length < 2) {
-    console.log("Uso: vote <token> <Sim|Não>");
-    ensurePrompt();
-    return;
-  }
+      if (parts.length < 2) {
+        console.log("Usage: vote <token> <sim|nao>");
+        ensurePrompt();
+        return;
+      }
 
-  const [tokenArg, optionArg] = parts;
-  const option = optionArg.toUpperCase();
-  const voteOption = option === "SIM" ? "sim" : option === "NÃO" ? "nao" : undefined;
+      const [tokenArg, optionArg] = parts;
+      const option = optionArg.toUpperCase();
+      const voteOption = option === "SIM" ? "SIM" : option === "NÃO" ? "NÃO" : undefined;
 
-  if (!voteOption) {
-    console.log("Uso: vote <token> <Sim|Não>");
-    ensurePrompt();
-    return;
-  }
+      if (!voteOption) {
+        console.log("Usage: vote <token> <sim|nao>");
+        ensurePrompt();
+        return;
+      }
 
-  socket.emit("cast_vote", `CAST_VOTE|${tokenArg}|${voteOption}`);
-  console.log(`Voto enviado: token=${tokenArg} | opcao=${voteOption}`);
+      socket.emit("cast_vote", `CAST_VOTE|${tokenArg}|${voteOption}`);
+      console.log(`Vote sent: token=${tokenArg} | option=${voteOption}`);
 
     } else if (normalized === "exit" || normalized === "quit") {
       socket.disconnect();
       rl?.close();
       return;
     } else {
-      console.log(`Comando desconhecido: ${command}`);
+      console.log(`Unknown command: ${command}`);
       printHelp();
     }
 
@@ -145,39 +146,39 @@ const rawArg = firstSpaceIndex === -1 ? undefined : trimmed.slice(firstSpaceInde
 }
 
 socket.on("connect", () => {
-  console.log(`Conectado ao servidor: ${SERVER_URL}`);
+  console.log(`Connected to server: ${SERVER_URL}`);
 });
 
 socket.on("connection_ack", (data: ConnectionAck) => {
-  currentSessionId = data.sessao_id;
-  console.log(`Sessão: ${data.sessao_id}`);
-  console.log(`Placar inicial: SIM=${data.placar_atual.sim} NAO=${data.placar_atual.nao}`);
-  attachScoreListener(data.sessao_id);
+  currentSessionId = data.session_id;
+  console.log(`Session: ${data.session_id}`);
+  console.log(`Initial score: sim=${data.current_score.sim} nao=${data.current_score.nao}`);
+  attachScoreListener(data.session_id);
   socket.emit("client_register", { token: currentToken });
 });
 
 socket.on("client_registered", (data: ClientRegistered) => {
   currentToken = data.token;
-  currentSessionId = data.sessao_id;
+  currentSessionId = data.session_id;
 
-  console.log("Cliente autorizado no servidor.");
-  console.log(`Token atribuído: ${currentToken}`);
-  console.log(`Sessão: ${currentSessionId}`);
+  console.log("Client authorized on server.");
+  console.log(`Assigned token: ${currentToken}`);
+  console.log(`Session: ${currentSessionId}`);
 
   startInteractivePrompt();
 });
 
 socket.on("session_data", (data: SessionData) => {
-  console.log(`\n─── Snapshot da Sessão ${data.sessao_id} ───`);
-  console.log(`Placar Atual: SIM=${data.placar_atual.sim} | NÃO=${data.placar_atual.nao}`);
-  console.log(`Tokens ainda aptos a votar:`, data.tokens_autorizados);
-  console.log(`Tokens que já votaram:`, data.tokens_que_ja_votaram);
+  console.log(`\n─── Session Snapshot ${data.session_id} ───`);
+  console.log(`Current Score: sim=${data.current_score.sim} | nao=${data.current_score.nao}`);
+  console.log(`Tokens still eligible to vote:`, data.authorized_tokens);
+  console.log(`Tokens that have already voted:`, data.voted_tokens);
   console.log(`───────────────────────────────────`);
   ensurePrompt();
 });
 
 socket.on("vote_error", (error) => {
-  console.log("Erro de votação:", error);
+  console.log("Voting error:", error);
 });
 
 socket.on("disconnect", () => {
@@ -187,6 +188,6 @@ socket.on("disconnect", () => {
 });
 
 socket.on("connect_error", (error) => {
-  console.error("Falha ao conectar:", error.message);
+  console.error("Failed to connect:", error.message);
   process.exit(1);
 });

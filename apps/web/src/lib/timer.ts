@@ -1,24 +1,24 @@
-export const DURACAO_SEGUNDOS = 180
-export const TIMER_SYNC_EVENT = "assembleia:timer_sync"
+export const DURATION_SECONDS = 180
+export const TIMER_SYNC_EVENT = "assembly:timer_sync"
 
 export interface SessionTimerAnchor {
-  iniciada_em: number
-  duracao_segundos: number
-  sessao_id?: string
+  started_at: number
+  duration_seconds: number
+  session_id?: string
 }
 
-export function formatarTempo(segundos: number): string {
-  const m = Math.floor(segundos / 60)
-  const s = segundos % 60
+export function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }
 
-export function calcSegundosRestantes(
-  iniciada_em: number,
-  duracao_segundos: number,
+export function calcRemainingSeconds(
+  started_at: number,
+  duration_seconds: number,
 ): number {
-  const decorrido = Math.floor((Date.now() - iniciada_em) / 1000)
-  return Math.max(0, duracao_segundos - decorrido)
+  const elapsed = Math.floor((Date.now() - started_at) / 1000)
+  return Math.max(0, duration_seconds - elapsed)
 }
 
 export function syncSessionTimer(anchor: SessionTimerAnchor): void {

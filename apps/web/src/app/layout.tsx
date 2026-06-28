@@ -10,9 +10,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Assembleia Digital — Votação em tempo real',
+  title: 'Digital Assembly — Real-time voting',
   description:
-    'Sistema de votação de assembleia digital com autenticação por token, validação no servidor e apuração em tempo real via broadcast.',
+    'Digital assembly voting system with token authentication, server validation, and real-time results via broadcast.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -47,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} bg-background`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} bg-background`}>
       <body className="font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}

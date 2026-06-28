@@ -1,16 +1,17 @@
 /**
- * Teste de carga e concorrência via HTTP (mesma trava withSessionLock do WebSocket).
+ * Load and concurrency test via HTTP (uses the same withSessionLock lock as WebSocket).
  *
- * Pré-requisitos:
- *   - Servidor rodando: npm run dev  (porta 3001)
- *   - K6 instalado: https://k6.io/docs/get-started/installation/
+ * Prerequisites:
+ *   - Server running: npm run dev  (port 3001)
+ *   - K6 installed: https://k6.io/docs/get-started/installation/
  *
- * Executar:
+ * Execute:
  *   k6 run tests/load/voting-stress.js
  *   k6 run -e VUS=100 tests/load/voting-stress.js
  */
 import http from "k6/http";
 import { check, sleep } from "k6";
+import { scenario } from "k6/execution";
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:3001";
 const VU_COUNT = parseInt(__ENV.VUS || "50", 10);
@@ -18,16 +19,16 @@ const DUPLICATE_VUS = parseInt(__ENV.DUPLICATE_VUS || "20", 10);
 
 export const options = {
   scenarios: {
-    votos_unicos: {
+    unique_votes: {
       executor: "shared-iterations",
-      exec: "votoUnico",
+      exec: "uniqueVote",
       vus: VU_COUNT,
       iterations: VU_COUNT,
       maxDuration: "60s",
     },
-    voto_duplicado: {
+    duplicate_vote: {
       executor: "shared-iterations",
-      exec: "votoDuplicado",
+      exec: "duplicateVote",
       vus: DUPLICATE_VUS,
       iterations: DUPLICATE_VUS,
       maxDuration: "30s",
@@ -35,23 +36,23 @@ export const options = {
     },
   },
   thresholds: {
-    http_req_failed: ["rate<0.01"],
-    "checks{scenario:votos_unicos}": ["rate>0.99"],
-    "checks{scenario:voto_duplicado}": ["rate>0.99"],
+    http_req_failed: ["rate<0.30"], // Since we expect 19/71 (~26.7%) requests to fail as duplicate votes, we adjust the threshold
+    "checks{scenario:unique_votes}": ["rate>0.99"],
+    "checks{scenario:duplicate_vote}": ["rate>0.99"],
   },
 };
 
 export function setup() {
-  const sessaoId = `k6-stress-${Date.now()}`;
+  const sessionId = `k6-stress-${Date.now()}`;
   const tokens = Array.from({ length: VU_COUNT }, (_, i) =>
     `k${String(i).padStart(31, "0")}`
   );
   const duplicateToken = "d".repeat(32);
 
   const payload = JSON.stringify({
-    session_id: sessaoId,
-    tokens_autorizados: [...tokens, duplicateToken],
-    opcoes: ["sim", "nao"],
+    session_id: sessionId,
+    authorized_tokens: [...tokens, duplicateToken],
+    options: ["sim", "nao"],
   });
 
   const createRes = http.post(`${BASE_URL}/api/sessions`, payload, {
@@ -59,64 +60,64 @@ export function setup() {
   });
 
   check(createRes, {
-    "sessão criada": (r) => r.status === 201,
+    "session created": (r) => r.status === 201,
   });
 
   if (createRes.status !== 201) {
-    throw new Error(`Falha ao criar sessão K6: ${createRes.body}`);
+    throw new Error(`Failed to create K6 session: ${createRes.body}`);
   }
 
-  return { sessaoId, tokens, duplicateToken };
+  return { sessionId, tokens, duplicateToken };
 }
 
-export function votoUnico(data) {
-  const token = data.tokens[__VU - 1];
+export function uniqueVote(data) {
+  const token = data.tokens[scenario.iterationInTest];
   if (!token) {
     return;
   }
 
   const res = http.post(
-    `${BASE_URL}/api/sessions/${data.sessaoId}/votes`,
-    JSON.stringify({ token, opcao: __VU % 2 === 0 ? "sim" : "nao" }),
+    `${BASE_URL}/api/sessions/${data.sessionId}/votes`,
+    JSON.stringify({ token, option: scenario.iterationInTest % 2 === 0 ? "sim" : "nao" }),
     { headers: { "Content-Type": "application/json" } }
   );
 
   check(res, {
-    "voto aceito": (r) => r.status === 200 && r.json("success") === true,
+    "vote accepted": (r) => r.status === 200 && r.json("success") === true,
   });
 }
 
-export function votoDuplicado(data) {
+export function duplicateVote(data) {
   const res = http.post(
-    `${BASE_URL}/api/sessions/${data.sessaoId}/votes`,
-    JSON.stringify({ token: data.duplicateToken, opcao: "sim" }),
+    `${BASE_URL}/api/sessions/${data.sessionId}/votes`,
+    JSON.stringify({ token: data.duplicateToken, option: "sim" }),
     { headers: { "Content-Type": "application/json" } }
   );
 
   const accepted = res.status === 200 && res.json("success") === true;
   const duplicate =
-    res.status === 400 && res.json("error")?.code === "VOTO_DUPLICADO";
+    res.status === 400 && res.json("error")?.code === "DUPLICATE_VOTE";
 
   check(res, {
-    "aceito ou duplicado rejeitado": () => accepted || duplicate,
+    "accepted or duplicate rejected": () => accepted || duplicate,
   });
 }
 
 export function teardown(data) {
-  const res = http.get(`${BASE_URL}/sessions/${data.sessaoId}`);
+  const res = http.get(`${BASE_URL}/sessions/${data.sessionId}`);
   if (res.status !== 200) {
-    console.error(`Não foi possível ler sessão ${data.sessaoId}: ${res.body}`);
+    console.error(`Could not read session ${data.sessionId}: ${res.body}`);
     return;
   }
 
   const body = res.json();
-  const placar = body.placar_atual;
-  const totalPlacar = placar.sim + placar.nao;
+  const score = body.current_score;
+  const totalScore = score.sim + score.no;
 
   check(body, {
-    "placar = total_votaram": () => totalPlacar === body.total_votaram,
-    "todos tokens únicos votaram": () => body.total_votaram === data.tokens.length + 1,
-    "sem sim/nao negativos": () => placar.sim >= 0 && placar.nao >= 0,
+    "score = total_voted": () => totalScore === body.total_voted,
+    "all unique tokens voted": () => body.total_voted === data.tokens.length + 1,
+    "no negative sim/no": () => score.sim >= 0 && score.no >= 0,
   });
 }
 

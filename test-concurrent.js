@@ -1,32 +1,32 @@
 const BASE_URL = "http://localhost:3001";
-const SESSAO_ID = `teste-${Date.now()}`;
-const TOTAL_VOTOS = 20;
+const SESSION_ID = `test-${Date.now()}`;
+const TOTAL_VOTES = 20;
 
 const tokens = Array.from(
-  { length: TOTAL_VOTOS },
-  (_, i) => `token-teste-valido-${String(i).padStart(16, "0")}`
+  { length: TOTAL_VOTES },
+  (_, i) => `token-test-valid-${String(i).padStart(16, "0")}`
 );
 
-async function criarSessao() {
+async function createSession() {
   const res = await fetch(`${BASE_URL}/api/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      session_id: SESSAO_ID,
-      tokens_autorizados: tokens,
-      opcoes: ["sim", "nao"],
+      session_id: SESSION_ID,
+      authorized_tokens: tokens,
+      options: ["sim", "nao"],
     }),
   });
   const json = await res.json();
-  console.log("Criação da sessão:", json);
+  console.log("Session creation:", json);
   return tokens;
 }
 
-async function votar(token, opcao) {
-  const res = await fetch(`${BASE_URL}/api/sessions/${SESSAO_ID}/votes`, {
+async function vote(token, option) {
+  const res = await fetch(`${BASE_URL}/api/sessions/${SESSION_ID}/votes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, opcao: opcao.toLowerCase() }),
+    body: JSON.stringify({ token, option: option.toLowerCase() }),
   });
   const json = await res.json();
   if (!json.success) console.log(`[${token}]`, JSON.stringify(json));
@@ -35,40 +35,40 @@ async function votar(token, opcao) {
 
 
 async function main() {
-  console.log(`Sessão: ${SESSAO_ID}`);
-  console.log("Criando sessão...");
-  await criarSessao();
+  console.log(`Session: ${SESSION_ID}`);
+  console.log("Creating session...");
+  await createSession();
 
-  console.log(`\n--- Teste de ${TOTAL_VOTOS} votos simultâneos ---`);
-  const inicio = Date.now();
+  console.log(`\n--- Test of ${TOTAL_VOTES} simultaneous votes ---`);
+  const start = Date.now();
 
-  const resultados = await Promise.all(
-    tokens.map((token, i) => votar(token, i % 2 === 0 ? "sim" : "nao"))
+  const results = await Promise.all(
+    tokens.map((token, i) => vote(token, i % 2 === 0 ? "sim" : "nao"))
   );
 
-  const duracao = Date.now() - inicio;
-  const sucessos = resultados.filter((r) => r.success).length;
-  const erros = resultados.filter((r) => !r.success);
+  const duration = Date.now() - start;
+  const successes = results.filter((r) => r.success).length;
+  const errors = results.filter((r) => !r.success);
 
-  console.log(`\nResultado em ${duracao}ms:`);
-  console.log(`  Votos aceitos: ${sucessos} / ${TOTAL_VOTOS}`);
-  console.log(`  Esperado SIM: 10, NAO: 10`);
+  console.log(`\nResult in ${duration}ms:`);
+  console.log(`  Accepted votes: ${successes} / ${TOTAL_VOTES}`);
+  console.log(`  Expected sim: 10, NO: 10`);
 
-  if (erros.length > 0) {
-    console.log(`  Erros inesperados:`);
-    erros.forEach((e) => console.log(`    -`, JSON.stringify(e)));
+  if (errors.length > 0) {
+    console.log(`  Unexpected errors:`);
+    errors.forEach((e) => console.log(`    -`, JSON.stringify(e)));
   }
 
-  const sessao = await fetch(`${BASE_URL}/sessions/${SESSAO_ID}`).then((r) =>
+  const session = await fetch(`${BASE_URL}/sessions/${SESSION_ID}`).then((r) =>
     r.json()
   );
-  console.log(`\nPlacar final:`, sessao.placar_atual);
-  console.log(`Total votaram: ${sessao.total_votaram} / ${sessao.total_autorizados}`);
+  console.log(`\nFinal score:`, session.current_score);
+  console.log(`Total voted: ${session.total_voted} / ${session.total_authorized}`);
 
-  const placarOk =
-    sessao.total_votaram === TOTAL_VOTOS && sucessos === TOTAL_VOTOS;
+  const scoreOk =
+    session.total_voted === TOTAL_VOTES && successes === TOTAL_VOTES;
   console.log(
-    `\n${placarOk ? "✅ TRAVAS FUNCIONANDO" : "❌ PROBLEMA DE CONCORRÊNCIA DETECTADO"}`
+    `\n${scoreOk ? "LOCKS WORKING" : "CONCURRENCY PROBLEM DETECTED"}`
   );
 
 }

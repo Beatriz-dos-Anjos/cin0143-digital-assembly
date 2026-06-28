@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { io } from "socket.io-client";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
-const OPCAO = process.env.VOTE_OPCAO ?? "sim";
+const OPTION = process.env.VOTE_OPTION ?? "sim";
 
 // Use VOTE_TOKEN from environment if provided, otherwise generate a random unique token
 let token = process.env.VOTE_TOKEN;
@@ -13,37 +13,37 @@ if (!token) {
 const socket = io(SERVER_URL);
 
 socket.on("connect", () => {
-  console.log(`Conectado ao servidor: ${SERVER_URL}`);
+  console.log(`Connected to server: ${SERVER_URL}`);
 });
 
 socket.on("connection_ack", (data) => {
-  console.log("Sessão inicial:", data);
-  console.log(`Registrando/Autorizando token: ${token}`);
+  console.log("Initial session:", data);
+  console.log(`Registering/Authorizing token: ${token}`);
   socket.emit("client_register", { token });
 });
 
 socket.on("client_registered", (data) => {
-  console.log("Token autorizado com sucesso pelo servidor:", data);
+  console.log("Token successfully authorized by server:", data);
   const activeToken = data.token;
-  const sessionId = data.sessao_id;
+  const sessionId = data.session_id;
 
-  // Listen to the correct placar channel dynamically
-  socket.on(`placar_atualizado_${sessionId}`, (placar) => {
-    console.log("Placar atualizado recebido:", placar);
+  // Listen to the correct score channel dynamically
+  socket.on(`score_updated_${sessionId}`, (score) => {
+    console.log("Updated score received:", score);
     socket.disconnect();
   });
 
-  const payload = `CAST_VOTE|${activeToken}|${OPCAO}`;
-  console.log("Enviando voto:", payload);
+  const payload = `CAST_VOTE|${activeToken}|${OPTION}`;
+  console.log("Sending vote:", payload);
   socket.emit("cast_vote", payload);
 });
 
 socket.on("vote_error", (error) => {
-  console.log("Erro de votação:", error);
+  console.log("Voting error:", error);
   socket.disconnect();
 });
 
 socket.on("connect_error", (error) => {
-  console.error("Falha ao conectar:", error.message);
+  console.error("Failed to connect:", error.message);
   process.exit(1);
 });

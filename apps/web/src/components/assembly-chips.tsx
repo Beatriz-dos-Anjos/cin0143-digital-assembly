@@ -10,35 +10,35 @@ export function SessionChip({ id }: { id: string }) {
 }
 
 export function Countdown({
-  tempo,
-  encerrada,
+  time,
+  ended,
 }: {
-  tempo: string
-  encerrada: boolean
+  time: string
+  ended: boolean
 }) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 font-mono text-lg font-semibold tabular-nums",
-        encerrada ? "text-nao" : "text-foreground",
+        ended ? "text-no" : "text-foreground",
       )}
     >
       <Clock className="size-4" aria-hidden />
-      <span aria-label={`Tempo restante ${tempo}`}>{tempo}</span>
+      <span aria-label={`Remaining time ${time}`}>{time}</span>
     </span>
   )
 }
 
-export function LiveBadge({ ativo }: { ativo: boolean }) {
+export function LiveBadge({ active }: { active: boolean }) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold",
-        ativo ? "bg-live text-live-foreground" : "bg-muted text-muted-foreground",
+        active ? "bg-live text-live-foreground" : "bg-muted text-muted-foreground",
       )}
     >
-      <Radio className={cn("size-4", ativo && "animate-pulse")} aria-hidden />
-      {ativo ? "AO VIVO" : "ENCERRADO"}
+      <Radio className={cn("size-4", active && "animate-pulse")} aria-hidden />
+      {active ? "LIVE" : "ENDED"}
     </span>
   )
 }

@@ -1,28 +1,27 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { toServerOpcao, type Opcao } from "@/src/lib/assembly"
+import { toServerOption, type VoteOption } from "@/src/lib/assembly"
 import {
   ApiRequestError,
   checkHealth,
   castVote,
-  DEFAULT_SESSAO_ID,
+  DEFAULT_SESSION_ID,
   generateToken,
   getSession,
 } from "@/src/lib/api"
 
 type Feedback =
-  | { tipo: "erro"; mensagem: string }
-  | { tipo: "sucesso"; mensagem: string }
+  | { type: "error" | "success"; message: string }
   | null
 
 export function useVoter() {
   const [token, setToken] = useState("")
   const [feedback, setFeedback] = useState<Feedback>(null)
-  const [votando, setVotando] = useState<Opcao | null>(null)
-  const [sessaoId, setSessaoId] = useState(DEFAULT_SESSAO_ID)
+  const [voting, setVoting] = useState<VoteOption | null>(null)
+  const [sessionId, setSessionId] = useState(DEFAULT_SESSION_ID)
   const [connected, setConnected] = useState(false)
-  const [gerandoToken, setGerandoToken] = useState(false)
+  const [generatingToken, setGeneratingToken] = useState(false)
   const requestQueueRef = useRef(Promise.resolve())
 
   const enqueueExclusive = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
@@ -44,12 +43,12 @@ export function useVoter() {
 
       if (ok) {
         try {
-          const session = await getSession(DEFAULT_SESSAO_ID)
+          const session = await getSession(DEFAULT_SESSION_ID)
           if (!cancelled) {
-            setSessaoId(session.sessao_id)
+            setSessionId(session.session_id)
           }
         } catch {
-          // sessão indisponível; mantém DEFAULT_SESSAO_ID
+          // session unavailable; keep DEFAULT_SESSION_ID
         }
       }
     }
@@ -65,44 +64,44 @@ export function useVoter() {
     }
   }, [])
 
-  const gerarToken = useCallback(async (): Promise<string | null> => {
+  const generateNewToken = useCallback(async (): Promise<string | null> => {
     return enqueueExclusive(async () => {
       if (!connected) {
         setFeedback({
-          tipo: "erro",
-          mensagem: "Sem conexão com o servidor. Aguarde ou recarregue a página.",
+          type: "error",
+          message: "No connection to the server. Please wait or reload the page.",
         })
         return null
       }
 
       setFeedback(null)
       setToken("")
-      setGerandoToken(true)
+      setGeneratingToken(true)
 
       try {
-        const data = await generateToken(sessaoId || DEFAULT_SESSAO_ID)
+        const data = await generateToken(sessionId || DEFAULT_SESSION_ID)
         setToken(data.token)
-        setSessaoId(data.sessao_id)
+        setSessionId(data.session_id)
         return data.token
       } catch (error) {
-        const mensagem =
+        const message =
           error instanceof ApiRequestError
             ? error.message
-            : "Não foi possível gerar o token."
-        setFeedback({ tipo: "erro", mensagem })
+            : "Could not generate token."
+        setFeedback({ type: "error", message })
         return null
       } finally {
-        setGerandoToken(false)
+        setGeneratingToken(false)
       }
     })
-  }, [connected, enqueueExclusive, sessaoId])
+  }, [connected, enqueueExclusive, sessionId])
 
-  const alterarToken = useCallback((value: string) => {
+  const changeToken = useCallback((value: string) => {
     setToken(value)
   }, [])
 
-  const registrarVoto = useCallback(
-    async (opcao: Opcao) => {
+  const submitVote = useCallback(
+    async (option: VoteOption) => {
       const tokenValue = token.trim()
 
       await enqueueExclusive(async () => {
@@ -110,68 +109,68 @@ export function useVoter() {
 
         if (!tokenValue) {
           setFeedback({
-            tipo: "erro",
-            mensagem: "Informe um token antes de votar.",
+            type: "error",
+            message: "Please enter a token before voting.",
           })
           return
         }
 
         if (!connected) {
           setFeedback({
-            tipo: "erro",
-            mensagem: "Sem conexão com o servidor. Aguarde ou recarregue a página.",
+            type: "error",
+            message: "No connection to the server. Please wait or reload the page.",
           })
           return
         }
 
-        setVotando(opcao)
+        setVoting(option)
 
         try {
           await castVote(
-            sessaoId || DEFAULT_SESSAO_ID,
+            sessionId || DEFAULT_SESSION_ID,
             tokenValue,
-            toServerOpcao(opcao),
+            toServerOption(option),
           )
           setToken("")
           setFeedback({
-            tipo: "sucesso",
-            mensagem: "Voto registrado com sucesso. Obrigado!",
+            type: "success",
+            message: "Voto registrado com sucesso! Obrigado por participar.",
           })
         } catch (error) {
-          const mensagem =
+          const message =
             error instanceof ApiRequestError
               ? error.message
-              : "Não foi possível registrar o voto."
-          setFeedback({ tipo: "erro", mensagem })
+              : "Could not register vote."
+          setFeedback({ type: "error", message })
         } finally {
-          setVotando(null)
+          setVoting(null)
         }
       })
     },
-    [token, connected, enqueueExclusive, sessaoId],
+    [token, connected, enqueueExclusive, sessionId],
   )
 
-  const limparEstado = useCallback(() => {
+  const clearState = useCallback(() => {
     setToken("")
     setFeedback(null)
-    setVotando(null)
+    setVoting(null)
   }, [])
 
-  const mostrarErro = useCallback((mensagem: string) => {
-    setFeedback({ tipo: "erro", mensagem })
+  const showError = useCallback((message: string) => {
+    setFeedback({ type: "error", message })
   }, [])
 
   return {
     token,
-    setToken: alterarToken,
+    setToken: changeToken,
     feedback,
-    votando,
-    sessaoId,
+    voting,
+    sessionId,
     connected,
-    gerandoToken,
-    gerarToken,
-    registrarVoto,
-    limparEstado,
-    mostrarErro,
+    generatingToken,
+    generateToken: generateNewToken,
+    submitVote,
+    clearState,
+    showError,
   }
 }

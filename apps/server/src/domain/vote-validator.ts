@@ -1,12 +1,11 @@
-
 import {
   DuplicateVoteContext,
-  SessaoVotacao,
+  VotingSession,
   TokenAuthStatus,
   VoteContext,
   VoteOption,
   VoteResult,
-  VotoRegistrado,
+  RegisteredVote,
   createVoteError,
 } from "./types";
 import { parseCastVote } from "./vote-parser";
@@ -14,35 +13,35 @@ import { formatTimestamp } from "../loggers/logger";
 import { sessionStore } from "../repository/session-store";
 
 export function getTokenStatus(
-  sessao: SessaoVotacao,
+  session: VotingSession,
   token: string
 ): TokenAuthStatus {
-  const autorizado = sessao.tokens_autorizados.includes(token);
-  const votoAnterior = sessionStore.findVoteByToken(sessao, token);
+  const authorized = session.authorized_tokens.includes(token);
+  const previousVote = sessionStore.findVoteByToken(session, token);
 
   return {
     token,
-    autorizado,
-    votou: Boolean(votoAnterior),
-    voto_registrado: votoAnterior?.voto,
-    timestamp_voto: votoAnterior?.timestamp,
-    pode_votar: autorizado && !votoAnterior,
+    authorized,
+    voted: Boolean(previousVote),
+    registered_vote: previousVote?.vote,
+    vote_timestamp: previousVote?.timestamp,
+    can_vote: authorized && !previousVote,
   };
 }
 
-function isTokenAuthorized(sessao: SessaoVotacao, token: string): boolean {
-  return sessao.tokens_autorizados.includes(token);
+function isTokenAuthorized(session: VotingSession, token: string): boolean {
+  return session.authorized_tokens.includes(token);
 }
 
 function findPreviousVote(
-  sessao: SessaoVotacao,
+  session: VotingSession,
   token: string
-): VotoRegistrado | undefined {
-  return sessionStore.findVoteByToken(sessao, token);
+): RegisteredVote | undefined {
+  return sessionStore.findVoteByToken(session, token);
 }
 
 export function processVote(
-  sessao: SessaoVotacao,
+  session: VotingSession,
   payload: unknown,
   context?: VoteContext
 ): VoteResult {
@@ -59,7 +58,7 @@ export function processVote(
     };
   }
 
-  const { token, opcao } = parsed;
+  const { token, option } = parsed;
   if (context?.socket_token && context.socket_token !== token) {
     return {
       success: false,
@@ -71,7 +70,7 @@ export function processVote(
     };
   }
 
-  if (!isTokenAuthorized(sessao, token)) {
+  if (!isTokenAuthorized(session, token)) {
     return {
       success: false,
       error: createVoteError(
@@ -82,15 +81,15 @@ export function processVote(
     };
   }
 
-  const votoAnterior = findPreviousVote(sessao, token);
+  const previousVote = findPreviousVote(session, token);
 
-  if (votoAnterior) {
+  if (previousVote) {
     const duplicate: DuplicateVoteContext = {
       token,
-      voto_anterior: votoAnterior.voto,
-      voto_tentado: opcao,
-      timestamp_voto_anterior: votoAnterior.timestamp,
-      tentativa_reversao: votoAnterior.voto !== opcao,
+      previous_vote: previousVote.vote,
+      attempted_vote: option,
+      previous_vote_timestamp: previousVote.timestamp,
+      reversion_attempt: previousVote.vote !== option,
     };
 
     return {
@@ -104,31 +103,32 @@ export function processVote(
     };
   }
 
-  const voto: VotoRegistrado = {
+  const vote: RegisteredVote = {
     token,
-    voto: opcao,
+    vote: option,
     timestamp: formatTimestamp(),
-    sessao_id: context?.sessao_id ?? sessao.sessao_id,
+    session_id: context?.session_id ?? session.session_id,
     ip: context?.ip,
     socket_id: context?.socket_id,
   };
 
   try {
-    const placarAnterior = { ...sessao.placar_atual };
+    const previousScore = { ...session.current_score };
+    const scoreKey = option === "SIM" ? "sim" : "nao";
 
-    const novosPlacar = {
-      ...placarAnterior,
-      [opcao]: placarAnterior[opcao] + 1,
+    const newScore = {
+      ...previousScore,
+      [scoreKey]: previousScore[scoreKey] + 1,
     };
 
-    sessao.placar_atual = novosPlacar;
-    sessao.tokens_que_ja_votaram = [...sessao.tokens_que_ja_votaram, token];
-    sessao.votos_realizados = [...sessao.votos_realizados, voto];
+    session.current_score = newScore;
+    session.voted_tokens = [...session.voted_tokens, token];
+    session.votes_cast = [...session.votes_cast, vote];
 
     return {
       success: true,
-      placar: { ...novosPlacar },
-      voto,
+      score: { ...newScore },
+      vote,
     };
   } catch (error) {
     return {
@@ -143,45 +143,45 @@ export function processVote(
 }
 
 export function castVoteFromManual(
-  sessao: SessaoVotacao,
+  session: VotingSession,
   token: string,
-  opcao: VoteOption
+  option: VoteOption
 ): VoteResult {
-  const payload = `CAST_VOTE|${token}|${opcao}`;
-  return processVote(sessao, payload, {
-    sessao_id: sessao.sessao_id,
+  const payload = `CAST_VOTE|${token}|${option}`;
+  return processVote(session, payload, {
+    session_id: session.session_id,
   });
 }
 
-export function getTokensAindaAptos(sessao: SessaoVotacao): string[] {
-  const votadosSet = new Set(sessao.tokens_que_ja_votaram);
-  return sessao.tokens_autorizados.filter((token) => !votadosSet.has(token));
+export function getEligibleTokens(session: VotingSession): string[] {
+  const votedSet = new Set(session.voted_tokens);
+  return session.authorized_tokens.filter((token) => !votedSet.has(token));
 }
 
 export function calculatePercentage(
-  votos: number,
+  votes: number,
   total: number,
-  casasDecimais: number = 1
+  decimalPlaces: number = 1
 ): string {
   if (total === 0) return "0.0%";
-  const percentual = (votos / total) * 100;
-  return `${percentual.toFixed(casasDecimais)}%`;
+  const percentual = (votes / total) * 100;
+  return `${percentual.toFixed(decimalPlaces)}%`;
 }
 
-export function getVotingStatistics(sessao: SessaoVotacao) {
-  const total = sessao.votos_realizados.length;
-  const sim = sessao.placar_atual.sim;
-  const nao = sessao.placar_atual.nao;
-  const aptos = getTokensAindaAptos(sessao);
+export function getVotingStatistics(session: VotingSession) {
+  const total = session.votes_cast.length;
+  const sim = session.current_score.sim;
+  const no = session.current_score.nao;
+  const eligible = getEligibleTokens(session);
 
   return {
-    total_votos: total,
-    votos_sim: sim,
-    votos_nao: nao,
-    percentual_sim: calculatePercentage(sim, total),
-    percentual_nao: calculatePercentage(nao, total),
-    tokens_aptos: aptos.length,
-    tokens_votaram: sessao.tokens_que_ja_votaram.length,
-    tokens_totais: sessao.tokens_autorizados.length,
+    total_votes: total,
+    votes_sim: sim,
+    votes_no: no,
+    percentage_sim: calculatePercentage(sim, total),
+    percentage_no: calculatePercentage(no, total),
+    eligible_tokens: eligible.length,
+    voted_tokens: session.voted_tokens.length,
+    total_tokens: session.authorized_tokens.length,
   };
 }

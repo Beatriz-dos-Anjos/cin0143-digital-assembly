@@ -1,7 +1,7 @@
 /**
- * Opção de voto disponível
+ * Available vote option
  */
-export type VoteOption = "sim" | "nao";
+export type VoteOption = "SIM" | "NÃO";
 export type ErrorSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type VoteErrorCode =
   | "FORMATO_INVALIDO"
@@ -10,76 +10,76 @@ export type VoteErrorCode =
   | "OPCAO_INVALIDA"
   | "SESSAO_NAO_ENCONTRADA"
   | "RATE_LIMIT_EXCEDIDO";
-export type LogLevel = "INFO" | "SUCCESS" | "WARNING" | "ERROR" | "ALERT" | "AUDITORIA";
+export type LogLevel = "INFO" | "SUCCESS" | "WARNING" | "ERROR" | "ALERT" | "AUDIT";
 
 /**
- * Placar atual da votação
+ * Current score of the voting session
  */
-export interface PlacarAtual {
+export interface CurrentScore {
   readonly sim: number;
   readonly nao: number;
 }
 
 /**
- * Registro de um voto realizado
+ * Record of a cast vote
  */
-export interface VotoRegistrado {
+export interface RegisteredVote {
   readonly token: string;
-  readonly voto: VoteOption;
+  readonly vote: VoteOption;
   readonly timestamp: string;
-  readonly sessao_id: string;
+  readonly session_id: string;
   readonly ip?: string;
   readonly socket_id?: string;
 }
 
 /**
- * Contexto de votação (dados da requisição)
+ * Voting context (request data)
  */
 export interface VoteContext {
-  readonly sessao_id: string;
+  readonly session_id: string;
   readonly socket_id?: string;
   readonly ip?: string;
   readonly socket_token?: string;
 }
 
 /**
- * Contexto de voto duplicado (para auditoria)
+ * Context for a duplicate vote (for auditing)
  */
 export interface DuplicateVoteContext {
   readonly token: string;
-  readonly voto_anterior: VoteOption;
-  readonly voto_tentado: VoteOption;
-  readonly timestamp_voto_anterior: string;
-  readonly tentativa_reversao: boolean;
+  readonly previous_vote: VoteOption;
+  readonly attempted_vote: VoteOption;
+  readonly previous_vote_timestamp: string;
+  readonly reversion_attempt: boolean;
 }
 
 /**
- * Sessão de votação com todos os dados
+ * Voting session with all data
  */
-export interface SessaoVotacao {
-  readonly sessao_id: string;
-  placar_atual: PlacarAtual;
-  tokens_autorizados: string[];
-  tokens_que_ja_votaram: string[];
-  votos_realizados: VotoRegistrado[];
-  readonly criada_em: string;
-  iniciada_em: number;
-  readonly encerrada_em?: string;
+export interface VotingSession {
+  readonly session_id: string;
+  current_score: CurrentScore;
+  authorized_tokens: string[];
+  voted_tokens: string[];
+  votes_cast: RegisteredVote[];
+  readonly created_at: string;
+  started_at: number;
+  readonly ended_at?: string;
 }
 
 /** Duração padrão da janela de votação (segundos). */
 export const SESSION_DURATION_SEC = 180;
 
 /**
- * Voto parseado 
+ * Parsed cast vote
  */
 export interface ParsedCastVote {
   readonly token: string;
-  readonly opcao: VoteOption;
+  readonly option: VoteOption;
 }
 
 /**
- * Erro de validação de voto
+ * Vote validation error
  */
 export interface VoteError {
   readonly code: VoteErrorCode;
@@ -88,13 +88,13 @@ export interface VoteError {
 }
 
 /**
- * Resultado de processamento de voto 
+ * Vote processing result
  */
 export type VoteResult =
   | {
       readonly success: true;
-      readonly placar: PlacarAtual;
-      readonly voto: VotoRegistrado;
+      readonly score: CurrentScore;
+      readonly vote: RegisteredVote;
     }
   | {
       readonly success: false;
@@ -103,26 +103,26 @@ export type VoteResult =
     };
 
 /**
- * Status de autenticação de um token
+ * Authentication status of a token
  */
 export interface TokenAuthStatus {
   readonly token: string;
-  readonly autorizado: boolean;
-  readonly votou: boolean;
-  readonly voto_registrado?: VoteOption;
-  readonly timestamp_voto?: string;
-  readonly pode_votar: boolean;
+  readonly authorized: boolean;
+  readonly voted: boolean;
+  readonly registered_vote?: VoteOption;
+  readonly vote_timestamp?: string;
+  readonly can_vote: boolean;
 }
 
 /**
- * Detalhes estruturados de um log
+ * Structured details of a log
  */
 export interface LogDetails {
   readonly [key: string]: string | number | boolean | string[] | number[] | undefined;
 }
 
 /**
- * Entrada de log estruturada
+ * Structured log entry
  */
 export interface StructuredLog {
   readonly timestamp: string;
@@ -133,17 +133,17 @@ export interface StructuredLog {
 }
 
 /**
- * Prefixo do comando de voto
+ * Prefix of the cast vote command
  */
 export const CAST_VOTE_PREFIX = "CAST_VOTE";
 
 /**
- * Opções de voto válidas
+ * Valid vote options
  */
-export const VALID_OPTIONS: readonly VoteOption[] = ["sim", "nao"];
+export const VALID_OPTIONS: readonly VoteOption[] = ["SIM", "NÃO"];
 
 /**
- * Eventos de WebSocket
+ * WebSocket events
  */
 export const SOCKET_EVENTS = {
   CAST_VOTE: "cast_vote",
@@ -151,7 +151,7 @@ export const SOCKET_EVENTS = {
   CLIENT_REGISTERED: "client_registered",
   SESSION_REQUEST: "session_request",
   SESSION_DATA: "session_data",
-  PLACAR_ATUALIZADO: "placar_atualizado",
+  SCORE_UPDATED: "score_updated",
   VOTE_ACCEPTED: "vote_accepted",
   VOTE_ERROR: "vote_error",
   CONNECTION_ACK: "connection_ack",
@@ -159,37 +159,37 @@ export const SOCKET_EVENTS = {
 } as const;
 
 /**
- * Configurações de Rate Limiting
+ * Rate Limiting settings
  */
 export const RATE_LIMIT_CONFIG = {
   MAX_VOTES_PER_HOUR: 1000,
   MAX_VOTES_PER_IP: 100,
-  WINDOW_MS: 3600000, // 1 hora em ms
+  WINDOW_MS: 3600000, // 1 hour in ms
 } as const;
 
 /**
- * Configurações de Segurança
+ * Security settings
  */
 export const SECURITY_CONFIG = {
   TOKEN_LENGTH: 32, // bytes
   TOKEN_ALPHABET: "abcdef0123456789",
-  SESSION_TIMEOUT_MS: 86400000, // 24 horas
-  MAX_SESSION_LIFETIME_MS: 604800000, // 7 dias
+  SESSION_TIMEOUT_MS: 86400000, // 24 hours
+  MAX_SESSION_LIFETIME_MS: 604800000, // 7 days
 } as const;
 
 /**
- * Cria o nome do canal de broadcast para uma sessão
- * @param sessaoId ID da sessão
- * @returns Nome do canal
+ * Creates the broadcast channel name for a session
+ * @param sessionId Session ID
+ * @returns Channel name
  */
-export function placarChannel(sessaoId: string): string {
-  return `${SOCKET_EVENTS.PLACAR_ATUALIZADO}_${sessaoId}`;
+export function scoreChannel(sessionId: string): string {
+  return `${SOCKET_EVENTS.SCORE_UPDATED}_${sessionId}`;
 }
 
 /**
- * Valida se uma opção é válida
- * @param value Valor a validar
- * @returns true se é uma opção válida
+ * Validates if an option is valid
+ * @param value Value to validate
+ * @returns true if it is a valid option
  */
 export function isValidOption(value: unknown): value is VoteOption {
   return typeof value === "string" && VALID_OPTIONS.includes(value as VoteOption);

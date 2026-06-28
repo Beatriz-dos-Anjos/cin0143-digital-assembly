@@ -1,39 +1,39 @@
-import type { ServerPlacar } from "@/src/lib/api"
+import type { ServerScore } from "@/src/lib/api"
 
-export type { ServerPlacar }
+export type { ServerScore }
 
-export type Opcao = "SIM" | "NAO"
+export type VoteOption = "SIM" | "NÃO"
 
-export interface Placar {
-  SIM: number
-  NAO: number
+export interface Score {
+  sim: number
+  nao: number
 }
 
 export interface AssemblyState {
-  sessao_id: string
-  placar_atual: Placar
+  session_id: string
+  current_score: Score
   connected: boolean
 }
 
-export function fromServerPlacar(placar: ServerPlacar): Placar {
-  return { SIM: placar.sim, NAO: placar.nao }
+export function fromServerScore(score: ServerScore): Score {
+  return { sim: score.sim, nao: score.nao }
 }
 
-export function toServerOpcao(opcao: Opcao): "sim" | "nao" {
-  return opcao === "SIM" ? "sim" : "nao"
+export function toServerOption(option: VoteOption): "SIM" | "NÃO" {
+  return option === "SIM" ? "SIM" : "NÃO"
 }
 
-export function formatCastVote(token: string, opcao: Opcao): string {
-  return `CAST_VOTE|${token.trim()}|${toServerOpcao(opcao)}`
+export function formatCastVote(token: string, option: VoteOption): string {
+  return `CAST_VOTE|${token.trim()}|${toServerOption(option)}`
 }
 
-export function totalVotos(placar: Placar): number {
-  return placar.SIM + placar.NAO
+export function totalVotes(score: Score): number {
+  return score.sim + score.nao
 }
 
-export function percentual(valor: number, total: number): number {
+export function percentage(value: number, total: number): number {
   if (total <= 0) return 0
-  return (valor / total) * 100
+  return (value / total) * 100
 }
 
 export function isValidTokenFormat(token: string): boolean {
