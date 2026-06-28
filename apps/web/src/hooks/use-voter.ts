@@ -1,0 +1,177 @@
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import { toServerOpcao, type Opcao } from "@/src/lib/assembly"
+import {
+  ApiRequestError,
+  checkHealth,
+  castVote,
+  DEFAULT_SESSAO_ID,
+  generateToken,
+  getSession,
+} from "@/src/lib/api"
+
+type Feedback =
+  | { tipo: "erro"; mensagem: string }
+  | { tipo: "sucesso"; mensagem: string }
+  | null
+
+export function useVoter() {
+  const [token, setToken] = useState("")
+  const [feedback, setFeedback] = useState<Feedback>(null)
+  const [votando, setVotando] = useState<Opcao | null>(null)
+  const [sessaoId, setSessaoId] = useState(DEFAULT_SESSAO_ID)
+  const [connected, setConnected] = useState(false)
+  const [gerandoToken, setGerandoToken] = useState(false)
+  const requestQueueRef = useRef(Promise.resolve())
+
+  const enqueueExclusive = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    const next = requestQueueRef.current.then(task, task)
+    requestQueueRef.current = next.then(
+      () => undefined,
+      () => undefined,
+    )
+    return next
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function syncServerStatus() {
+      const ok = await checkHealth()
+      if (cancelled) return
+      setConnected(ok)
+
+      if (ok) {
+        try {
+          const session = await getSession(DEFAULT_SESSAO_ID)
+          if (!cancelled) {
+            setSessaoId(session.sessao_id)
+          }
+        } catch {
+          // sessão indisponível; mantém DEFAULT_SESSAO_ID
+        }
+      }
+    }
+
+    void syncServerStatus()
+    const interval = setInterval(() => {
+      void syncServerStatus()
+    }, 10_000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [])
+
+  const gerarToken = useCallback(async (): Promise<string | null> => {
+    return enqueueExclusive(async () => {
+      if (!connected) {
+        setFeedback({
+          tipo: "erro",
+          mensagem: "Sem conexão com o servidor. Aguarde ou recarregue a página.",
+        })
+        return null
+      }
+
+      setFeedback(null)
+      setToken("")
+      setGerandoToken(true)
+
+      try {
+        const data = await generateToken(sessaoId || DEFAULT_SESSAO_ID)
+        setToken(data.token)
+        setSessaoId(data.sessao_id)
+        return data.token
+      } catch (error) {
+        const mensagem =
+          error instanceof ApiRequestError
+            ? error.message
+            : "Não foi possível gerar o token."
+        setFeedback({ tipo: "erro", mensagem })
+        return null
+      } finally {
+        setGerandoToken(false)
+      }
+    })
+  }, [connected, enqueueExclusive, sessaoId])
+
+  const alterarToken = useCallback((value: string) => {
+    setToken(value)
+  }, [])
+
+  const registrarVoto = useCallback(
+    async (opcao: Opcao) => {
+      const tokenValue = token.trim()
+
+      await enqueueExclusive(async () => {
+        setFeedback(null)
+
+        if (!tokenValue) {
+          setFeedback({
+            tipo: "erro",
+            mensagem: "Informe um token antes de votar.",
+          })
+          return
+        }
+
+        if (!connected) {
+          setFeedback({
+            tipo: "erro",
+            mensagem: "Sem conexão com o servidor. Aguarde ou recarregue a página.",
+          })
+          return
+        }
+
+        setVotando(opcao)
+
+        try {
+          await castVote(
+            sessaoId || DEFAULT_SESSAO_ID,
+            tokenValue,
+            toServerOpcao(opcao),
+          )
+          setToken("")
+          setFeedback({
+            tipo: "sucesso",
+            mensagem: "Voto registrado com sucesso. Obrigado!",
+          })
+        } catch (error) {
+          const mensagem =
+            error instanceof ApiRequestError
+              ? error.message
+              : "Não foi possível registrar o voto."
+          setFeedback({ tipo: "erro", mensagem })
+        } finally {
+          setVotando(null)
+        }
+      })
+    },
+    [token, connected, enqueueExclusive, sessaoId],
+  )
+
+  const limparEstado = useCallback(() => {
+    setToken("")
+    setFeedback(null)
+    setVotando(null)
+  }, [])
+
+  const mostrarErro = useCallback((mensagem: string) => {
+    setFeedback({ tipo: "erro", mensagem })
+  }, [])
+
+  return {
+    token,
+    setToken: alterarToken,
+    feedback,
+    votando,
+    sessaoId,
+    connected,
+    gerandoToken,
+    gerarToken,
+    registrarVoto,
+    limparEstado,
+    mostrarErro,
+  }
+}

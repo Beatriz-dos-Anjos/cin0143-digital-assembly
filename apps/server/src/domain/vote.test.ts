@@ -14,6 +14,7 @@ function createTestSession(): SessaoVotacao {
     tokens_que_ja_votaram: [],
     votos_realizados: [],
     criada_em: "2026-06-21 00:00:00",
+    iniciada_em: Date.now(),
   };
 }
 

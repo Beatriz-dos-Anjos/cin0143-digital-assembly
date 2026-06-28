@@ -19,9 +19,9 @@ const BANNER = `
 const HELP = `
 Comandos disponíveis:
   LIST_TOKENS               - Listar todos os tokens válidos
-  LIST_VOTES                - Listar votos registrados
+  LIST_VOTES                F- Listar votos registrados
   PLACAR                    - Exibir placar atual
-  SESSION                   - Listar dados completos da sessão ativa
+  SESSION                    - Listar dados completos da sessão ativa
   CLEAR                     - Limpar console
   HELP                      - Exibir ajuda
   EXIT                      - Sair
@@ -236,7 +236,7 @@ function startConsole(): void {
 
   console.log(`Conectando ao servidor de votação em ${SERVER_URL}...`);
   socket = io(SERVER_URL);
-  
+
   setupSocketListeners();
 
   rl = readline.createInterface({

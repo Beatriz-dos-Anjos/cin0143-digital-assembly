@@ -63,8 +63,12 @@ export interface SessaoVotacao {
   tokens_que_ja_votaram: string[];
   votos_realizados: VotoRegistrado[];
   readonly criada_em: string;
+  iniciada_em: number;
   readonly encerrada_em?: string;
 }
+
+/** Duração padrão da janela de votação (segundos). */
+export const SESSION_DURATION_SEC = 180;
 
 /**
  * Voto parseado 
@@ -151,6 +155,7 @@ export const SOCKET_EVENTS = {
   VOTE_ACCEPTED: "vote_accepted",
   VOTE_ERROR: "vote_error",
   CONNECTION_ACK: "connection_ack",
+  SESSION_RESET: "session_reset",
 } as const;
 
 /**

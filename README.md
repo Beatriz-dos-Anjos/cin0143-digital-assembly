@@ -263,6 +263,47 @@ Isso possibilita:
 - Manutenção do servidor como única fonte de verdade do sistema.
 - Eliminação de comandos simultâneos (race conditions) relacionadas ao processamento dos votos.
 
+## Controle de Concorrência (`async-lock`)
+
+O estado da votação (placar, tokens que já votaram, histórico de votos) fica **em memória** no servidor. Sem travas, múltiplos eleitores votando ao mesmo tempo poderiam corromper os totais ou permitir que o mesmo token passasse na validação duas vezes antes da gravação.
+
+### Implementação
+
+| Artefato | Caminho | Papel |
+|---|---|---|
+| Biblioteca | [`async-lock`](https://www.npmjs.com/package/async-lock) | Mutex assíncrono por chave |
+| Serviço de trava | `apps/server/src/domain/lock.service.ts` | Instancia o lock e exporta `withSessionLock` |
+| Integração | `apps/server/src/server.ts` | Envolve operações críticas com a trava |
+
+O serviço centraliza o mutex por sessão:
+
+```typescript
+// apps/server/src/domain/lock.service.ts
+return sessionLock.acquire(`session:${sessionId}`, task);
+```
+
+### Onde `withSessionLock` é aplicado
+
+| Operação | Canal | Protegida |
+|---|---|---|
+| Registrar voto | `POST /api/sessions/:id/votes` | Sim |
+| Registrar voto | WebSocket `cast_vote` | Sim |
+| Reiniciar sessão | `POST /api/sessions/:id/reset` | Sim |
+
+Dentro da trava, `processVote` executa de forma serializada por sessão: valida token → verifica duplicidade → incrementa placar → registra voto. Votos de tokens **diferentes** na mesma sessão são enfileirados; votos **duplicados** do mesmo token em paralelo resultam em **apenas um aceite** e os demais rejeitados com `VOTO_DUPLICADO`.
+
+### Como comprovar
+
+```bash
+# Testes unitários de concorrência (Jest)
+npm run test
+
+# Stress test HTTP com K6 (servidor deve estar rodando em :3001)
+k6 run tests/load/voting-stress.js
+```
+
+Os testes em `apps/server/src/domain/lock.test.ts` simulam dezenas de votos paralelos via `Promise.all` + `withSessionLock`. O script K6 dispara dezenas de requisições simultâneas e valida consistência do placar no `teardown`. Se o K6 reportar `http_req_failed` alto ou `ERRO thresholds...`, leia o aviso na seção [Testes de Carga & Concorrência com K6](#testes-de-carga--concorrência-com-k6) — respostas **400** de voto duplicado são esperadas nesse script.
+
 ---
  
 ## Por que WebSocket em vez de MQTT?
@@ -492,26 +533,52 @@ npm run test:coverage
 | **D - Payload malformado** | String fora do formato `CAST_VOTE\|<token>\|<opcao>` | Rejeitado no Format Check |
 
 
-###  Testes de Carga & Concorrência com K6
+### Testes de Carga & Concorrência com K6
 
-O K6 será utilizado para simular alta concorrência de clientes WebSocket e identificar gargalos no event loop do servidor.
+O K6 simula dezenas de clientes enviando votos **simultaneamente via HTTP** (`POST /api/sessions/:id/votes`). Esse endpoint usa a mesma trava `withSessionLock` do WebSocket, exercitando o mutex em condições de alta concorrência.
+
+**Pré-requisitos:** servidor rodando (`npm run dev`) e [K6 instalado](https://k6.io/docs/get-started/installation/).
 
 **Executar:**
 
 ```bash
+npm run dev   # terminal 1 — porta 3001
 k6 run tests/load/voting-stress.js
+k6 run -e VUS=100 tests/load/voting-stress.js   # 100 votos paralelos
 ```
+
+**Cenários do script (`tests/load/voting-stress.js`):**
+
+| Cenário | O que testa |
+|---|---|
+| `votos_unicos` | N eleitores distintos votam em paralelo |
+| `voto_duplicado` | N tentativas simultâneas com o **mesmo** token (só 1 aceita) |
+| `teardown` | Placar final consistente (`sim + nao === total_votaram`) |
+
+> **Aviso — `http_req_failed` e mensagem de ERRO no final**
+>
+> O cenário `voto_duplicado` envia várias requisições paralelas com o **mesmo** token de propósito. O servidor rejeita as repetições com **HTTP 400** (`VOTO_DUPLICADO`) — isso é o comportamento **esperado** e prova que a trava funciona.
+>
+> O K6, porém, trata **qualquer resposta fora de 2xx** como falha HTTP na métrica `http_req_failed`. Com 20 tentativas duplicadas, ~19 respostas 400 elevam essa taxa (ex.: ~28%) e podem disparar `ERRO thresholds on metrics 'http_req_failed' have been crossed` **sem indicar bug no servidor**.
+>
+> Para avaliar o teste, priorize:
+> - `checks{scenario:votos_unicos}` e `checks{scenario:voto_duplicado}` em **100%**
+> - check `placar = total_votaram` no teardown
+> - check `aceito ou duplicado rejeitado` no cenário duplicado
+>
+> No Windows, se `k6` não for reconhecido no PATH, use o caminho completo: `& "C:\Program Files\k6\k6.exe" run tests/load/voting-stress.js`
 
 **Metas do cenário de stress:**
 
 | Parâmetro | Valor Alvo |
 |---|---|
-| Clientes WebSocket simultâneos | 100+ |
-| Janela de disparo | Mesma janela de milissegundos |
-| Duração do teste | 60s |
-| Taxa de erros aceitável | < 1% |
+| Clientes simultâneos (VUs) | 50 (padrão), configurável via `-e VUS=100` |
+| Janela de disparo | Mesma janela de milissegundos (`shared-iterations`) |
+| Duração máxima | 60s |
+| Checks dos cenários (`votos_unicos`, `voto_duplicado`) | > 99% |
+| `http_req_failed` global | Pode ficar alto por causa dos **400 esperados** no cenário duplicado (ver aviso acima) |
 
-**O que será monitorado:**
+**O que é monitorado:**
 
 - Race conditions no acesso concorrente ao estado em memória
 - Consistência do placar após múltiplos votos simultâneos
@@ -630,10 +697,11 @@ Payload de Entrada: "CAST_VOTE|TK_USER1|sim"
 ### Testes
 
 ```bash
-# Testes unitários (Jest)
+# Testes unitários (Jest — inclui concorrência em lock.test.ts)
 npm run test
 
-# Testes de carga (K6)
+# Testes de carga (K6 — requer servidor em :3001)
+npm run dev
 k6 run tests/load/voting-stress.js
 ```
 
@@ -650,7 +718,7 @@ k6 run tests/load/voting-stress.js
 │       ├── logs/                   # Logs operacionais (app, erros, auditoria)
 │       └── src/
 │           ├── console.ts          # Console interativo de testes (Entrega 2)
-│           ├── domain/             # Parsers, validadores e regras de negócio
+│           ├── domain/             # Parsers, validadores, lock.service.ts e regras de negócio
 │           ├── handlers/           # Tratamento de votos e logging
 │           ├── loggers/            # Sistema de logs estruturados
 │           ├── repository/         # Estado efêmero em memória (sessões ativas)

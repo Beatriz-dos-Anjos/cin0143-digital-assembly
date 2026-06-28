@@ -6,7 +6,8 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { z } from "zod";
 
-import { placarChannel, SOCKET_EVENTS } from "../src/domain/types";
+import { placarChannel, SOCKET_EVENTS, SESSION_DURATION_SEC, CAST_VOTE_PREFIX } from "../src/domain/types";
+import withSessionLock from "../src/domain/lock.service";
 import { processVote, getTokenStatus, getTokensAindaAptos } from "../src/domain/vote-validator";
 import {
   buildVoteContext,
@@ -67,19 +68,8 @@ app.use(
   })
 );
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // Máximo 100 requisições por window
-  message: "Muitas requisições deste IP, por favor tente mais tarde.",
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.use(limiter);
-
-
 /**
- * Health check
+ * Health check — fora do rate limit (poll frequente do frontend).
  */
 app.get("/health", (_req: Request, res: Response) => {
   res.json({
@@ -88,6 +78,25 @@ app.get("/health", (_req: Request, res: Response) => {
     uptime: process.uptime(),
   });
 });
+
+const isProduction = process.env.NODE_ENV === "production";
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10_000,
+  message: {
+    error: {
+      code: "RATE_LIMIT",
+      message: "Muitas requisições deste IP, por favor tente mais tarde.",
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => !isProduction,
+});
+
+app.use(limiter);
+
 
 /**
  * Info do servidor
@@ -106,6 +115,13 @@ function paramAsString(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
+function buildVotePayload(token: unknown, opcao: unknown): string {
+  const tokenStr = typeof token === "string" ? token.trim() : String(token ?? "");
+  const opcaoStr =
+    typeof opcao === "string" ? opcao.trim().toLowerCase() : String(opcao ?? "");
+  return `${CAST_VOTE_PREFIX}|${tokenStr}|${opcaoStr}`;
+}
+
 app.get("/sessions/:sessaoId", (req: Request, res: Response) => {
   try {
 const sessao = sessionStore.get(paramAsString(req.params.sessaoId));
@@ -121,6 +137,8 @@ const sessao = sessionStore.get(paramAsString(req.params.sessaoId));
       total_autorizados: sessao.tokens_autorizados.length,
       total_votaram: sessao.tokens_que_ja_votaram.length,
       votos_realizados: sessao.votos_realizados,
+      iniciada_em: sessao.iniciada_em,
+      duracao_segundos: SESSION_DURATION_SEC,
     });
   } catch (error) {
     res.status(500).json({ error: "Erro ao buscar sessão" });
@@ -164,6 +182,75 @@ app.post("/api/sessions", (req: Request, res: Response) => {
 });
 
 
+app.post("/api/sessions/:sessaoId/tokens/generate", (req: Request, res: Response) => {
+  try {
+    const sessaoId = paramAsString(req.params.sessaoId);
+    const sessao = sessionStore.get(sessaoId);
+
+    if (!sessao) {
+      res.status(404).json({ error: "Sessão não encontrada." });
+      return;
+    }
+
+    const newToken = tokenService.generateSecureToken();
+    sessionStore.addAuthorizedToken(sessaoId, newToken);
+    logTokenGenerated(newToken, sessaoId);
+
+    res.json({ token: newToken, sessao_id: sessaoId });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao gerar token" });
+  }
+});
+
+app.post("/api/sessions/:sessaoId/votes", async (req: Request, res: Response) => {
+  try {
+    const sessaoId = paramAsString(req.params.sessaoId);
+    const sessao = sessionStore.get(sessaoId);
+
+    if (!sessao) {
+      res.status(404).json({ error: "Sessão não encontrada." });
+      return;
+    }
+
+    const { token, opcao } = req.body;
+    const payload = buildVotePayload(token, opcao);
+    const context = {
+      sessao_id: sessaoId,
+      ip: req.ip ?? req.socket.remoteAddress ?? "desconhecido",
+    };
+    const result = await withSessionLock(sessaoId, () => processVote(sessao, payload, context));
+
+    if (!result.success) {
+      if (result.error.code === "FORMATO_INVALIDO") {
+        logInvalidFormat(payload, context);
+      } else if (result.error.code === "TOKEN_NAO_AUTORIZADO") {
+        const tokenStr = payload.split("|")[1] ?? "desconhecido";
+        logUnauthorizedVote(tokenStr, context, payload);
+      } else if (result.error.code === "VOTO_DUPLICADO" && result.duplicate) {
+        logDuplicateVote(result.duplicate, context, payload);
+      }
+
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    const channel = placarChannel(sessao.sessao_id);
+    io.to(sessao.sessao_id).emit(channel, result.placar);
+
+    logVoteAccepted(result, context);
+    logVoteSummary(sessao);
+
+    res.json({
+      success: true,
+      token: result.voto.token,
+      sessao_id: result.voto.sessao_id,
+      placar_atual: result.placar,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao registrar voto" });
+  }
+});
+
 app.post("/api/sessions/:sessaoId/tokens", (req: Request, res: Response) => {
   try {
     const { token } = req.body;
@@ -199,6 +286,105 @@ app.get("/api/statistics", (_req: Request, res: Response) => {
   }
 });
 
+function resolveSessaoIdFromQuery(req: Request): string {
+  const query = req.query.sessaoId;
+  if (typeof query === "string" && query.trim()) {
+    return query.trim();
+  }
+  return DEFAULT_SESSAO_ID;
+}
+
+function getSessionSnapshot(sessaoId: string) {
+  const sessao = sessionStore.get(sessaoId);
+  if (!sessao) {
+    return null;
+  }
+
+  return {
+    sessao_id: sessao.sessao_id,
+    placar_atual: sessao.placar_atual,
+    tokens_autorizados: getTokensAindaAptos(sessao),
+    tokens_que_ja_votaram: sessao.tokens_que_ja_votaram,
+    iniciada_em: sessao.iniciada_em,
+    duracao_segundos: SESSION_DURATION_SEC,
+  };
+}
+
+/** Comandos gerenciais — mesmos dados do console, direto do sessionStore. */
+app.get("/api/tokens", (req: Request, res: Response) => {
+  const snapshot = getSessionSnapshot(resolveSessaoIdFromQuery(req));
+  if (!snapshot) {
+    res.status(404).json({ error: "Sessão não encontrada." });
+    return;
+  }
+  res.json({ tokens_autorizados: snapshot.tokens_autorizados });
+});
+
+app.get("/api/votes", (req: Request, res: Response) => {
+  const sessao = sessionStore.get(resolveSessaoIdFromQuery(req));
+  if (!sessao) {
+    res.status(404).json({ error: "Sessão não encontrada." });
+    return;
+  }
+  res.json({ votos: sessao.votos_realizados });
+});
+
+app.get("/api/placar", (req: Request, res: Response) => {
+  const sessao = sessionStore.get(resolveSessaoIdFromQuery(req));
+  if (!sessao) {
+    res.status(404).json({ error: "Sessão não encontrada." });
+    return;
+  }
+  res.json(sessao.placar_atual);
+});
+
+app.get("/api/session", (req: Request, res: Response) => {
+  const snapshot = getSessionSnapshot(resolveSessaoIdFromQuery(req));
+  if (!snapshot) {
+    res.status(404).json({ error: "Sessão não encontrada." });
+    return;
+  }
+  res.json(snapshot);
+});
+
+app.post("/api/sessions/:sessaoId/reset", async (req: Request, res: Response) => {
+  try {
+    const sessaoId = paramAsString(req.params.sessaoId);
+
+    const sessao = await withSessionLock(sessaoId, async () => {
+      const reset = sessionStore.reset(sessaoId);
+      return reset;
+    });
+
+    if (!sessao) {
+      res.status(404).json({ error: "Sessão não encontrada." });
+      return;
+    }
+
+    const channel = placarChannel(sessao.sessao_id);
+    io.to(sessao.sessao_id).emit(channel, sessao.placar_atual);
+    io.to(sessao.sessao_id).emit(SOCKET_EVENTS.SESSION_RESET, {
+      sessao_id: sessao.sessao_id,
+      iniciada_em: sessao.iniciada_em,
+      duracao_segundos: SESSION_DURATION_SEC,
+      placar_atual: sessao.placar_atual,
+    });
+
+    logger.info("SESSION", "Sessão resetada via API", {
+      sessao_id: sessao.sessao_id,
+    });
+
+    res.json({
+      success: true,
+      sessao_id: sessao.sessao_id,
+      placar_atual: sessao.placar_atual,
+      iniciada_em: sessao.iniciada_em,
+      duracao_segundos: SESSION_DURATION_SEC,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao reiniciar sessão" });
+  }
+});
 
 io.on("connection", (socket) => {
   const sessao = sessionStore.getDefault();
@@ -210,6 +396,8 @@ io.on("connection", (socket) => {
     message: "Conectado ao servidor de votação.",
     sessao_id: sessao.sessao_id,
     placar_atual: sessao.placar_atual,
+    iniciada_em: sessao.iniciada_em,
+    duracao_segundos: SESSION_DURATION_SEC,
   });
 
   socket.on(SOCKET_EVENTS.CLIENT_REGISTER, (payload: unknown) => {
@@ -228,8 +416,7 @@ io.on("connection", (socket) => {
         });
         return;
       }
-      socketTokens.set(socket.id, requestedToken); 
-
+      socketTokens.set(socket.id, requestedToken);
 
       logClientAuthenticated(
         requestedToken,
@@ -265,13 +452,17 @@ io.on("connection", (socket) => {
       placar_atual: currentSession.placar_atual,
       tokens_autorizados: tokensAutorizadosAVotar,
       tokens_que_ja_votaram: currentSession.tokens_que_ja_votaram,
+      iniciada_em: currentSession.iniciada_em,
+      duracao_segundos: SESSION_DURATION_SEC,
     });
   });
 
-  socket.on(SOCKET_EVENTS.CAST_VOTE, (payload: unknown) => {
+  socket.on(SOCKET_EVENTS.CAST_VOTE, async(payload: unknown) => {
     const payloadStr = typeof payload === "string" ? payload : String(payload);
     const context = buildVoteContext(sessao, socket, socketTokens.get(socket.id));
-    const result = processVote(sessao, payloadStr, context);
+    const result = await withSessionLock(sessao.sessao_id, () =>
+      processVote(sessao, payloadStr, context)
+    );
 
     if (!result.success) {
       if (result.error.code === "FORMATO_INVALIDO") {

@@ -4,6 +4,18 @@ import { SessaoVotacao, VotoRegistrado, PlacarAtual } from "../domain/types";
 import { logger } from "../loggers/logger";
 import { formatTimestamp } from "../loggers/logger";
 
+export const STATIC_TOKENS = [
+  "550e8400-e29b-41d4-a716-446655440000",
+  "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+  "6ba7b811-9dad-11d1-80b4-00c04fd430c8",
+  "6ba7b812-9dad-11d1-80b4-00c04fd430c8",
+  "6ba7b814-9dad-11d1-80b4-00c04fd430c8",
+  "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "a987fbc9-4bed-3078-cf07-9141ba07c9f3",
+  "b8659fc7-5b65-4c38-8a8b-bedd779e64e9",
+  "d9428888-122b-11e1-b85c-61cd3cbb3210",
+  "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+] as const;
 
 //Criação inicial
 function createEmptyPlacar(): PlacarAtual {
@@ -11,13 +23,15 @@ function createEmptyPlacar(): PlacarAtual {
 }
 
 function createDefaultSession(): SessaoVotacao {
+  const now = Date.now();
   return {
     sessao_id:  "assembleia-2026-06",
     placar_atual: createEmptyPlacar(),
-    tokens_autorizados: [],
+    tokens_autorizados: [...STATIC_TOKENS],
     tokens_que_ja_votaram: [],
     votos_realizados: [],
-    criada_em: formatTimestamp(),
+    criada_em: formatTimestamp(new Date(now)),
+    iniciada_em: now,
   };
 }
 
@@ -35,6 +49,7 @@ export class SessionRepository {
 
     logger.info("SESSION_STORE", "Sessão padrão inicializada", {
       sessao_id: defaultSession.sessao_id,
+      total_tokens: defaultSession.tokens_autorizados.length,
     });
   }
 
@@ -80,13 +95,15 @@ export class SessionRepository {
       throw new Error(`Sessão ${payload.session_id} já existe`);
     }
 
+    const now = Date.now();
     const sessao: SessaoVotacao = {
       sessao_id: payload.session_id,
       placar_atual: createEmptyPlacar(),
       tokens_autorizados: [...payload.tokens_autorizados],
       tokens_que_ja_votaram: [],
       votos_realizados: [],
-      criada_em: formatTimestamp(),
+      criada_em: formatTimestamp(new Date(now)),
+      iniciada_em: now,
     };
 
     this.sessions.set(sessao.sessao_id, sessao);
@@ -152,6 +169,28 @@ export class SessionRepository {
       total_nao: totalNao,
       total_tokens: sessions.reduce((acc, s) => acc + s.tokens_autorizados.length, 0),
     };
+  }
+
+  reset(sessaoId: string): SessaoVotacao | undefined {
+    const sessao = this.sessions.get(sessaoId);
+
+    if (!sessao) {
+      return undefined;
+    }
+
+    const now = Date.now();
+    sessao.placar_atual = createEmptyPlacar();
+    sessao.tokens_autorizados = [...STATIC_TOKENS];
+    sessao.tokens_que_ja_votaram = [];
+    sessao.votos_realizados = [];
+    sessao.iniciada_em = now;
+
+    logger.info("SESSION_STORE", "Sessão reiniciada", {
+      sessao_id: sessao.sessao_id,
+      total_tokens: sessao.tokens_autorizados.length,
+    });
+
+    return sessao;
   }
 
  
