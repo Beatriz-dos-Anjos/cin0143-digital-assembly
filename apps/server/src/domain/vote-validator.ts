@@ -53,8 +53,8 @@ export function processVote(
       success: false,
       error: createVoteError(
         "FORMATO_INVALIDO",
-        "Payload inválido. Use o formato: CAST_VOTE|<token>|<opcao>",
-        "MEDIUM"
+        "Token inválido. Use o código completo fornecido pela assembleia.",
+        "HIGH"
       ),
     };
   }

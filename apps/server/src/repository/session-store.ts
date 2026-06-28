@@ -23,13 +23,15 @@ function createEmptyPlacar(): PlacarAtual {
 }
 
 function createDefaultSession(): SessaoVotacao {
+  const now = Date.now();
   return {
     sessao_id:  "assembleia-2026-06",
     placar_atual: createEmptyPlacar(),
     tokens_autorizados: [...STATIC_TOKENS],
     tokens_que_ja_votaram: [],
     votos_realizados: [],
-    criada_em: formatTimestamp(),
+    criada_em: formatTimestamp(new Date(now)),
+    iniciada_em: now,
   };
 }
 
@@ -93,13 +95,15 @@ export class SessionRepository {
       throw new Error(`Sessão ${payload.session_id} já existe`);
     }
 
+    const now = Date.now();
     const sessao: SessaoVotacao = {
       sessao_id: payload.session_id,
       placar_atual: createEmptyPlacar(),
       tokens_autorizados: [...payload.tokens_autorizados],
       tokens_que_ja_votaram: [],
       votos_realizados: [],
-      criada_em: formatTimestamp(),
+      criada_em: formatTimestamp(new Date(now)),
+      iniciada_em: now,
     };
 
     this.sessions.set(sessao.sessao_id, sessao);
@@ -165,6 +169,28 @@ export class SessionRepository {
       total_nao: totalNao,
       total_tokens: sessions.reduce((acc, s) => acc + s.tokens_autorizados.length, 0),
     };
+  }
+
+  reset(sessaoId: string): SessaoVotacao | undefined {
+    const sessao = this.sessions.get(sessaoId);
+
+    if (!sessao) {
+      return undefined;
+    }
+
+    const now = Date.now();
+    sessao.placar_atual = createEmptyPlacar();
+    sessao.tokens_autorizados = [...STATIC_TOKENS];
+    sessao.tokens_que_ja_votaram = [];
+    sessao.votos_realizados = [];
+    sessao.iniciada_em = now;
+
+    logger.info("SESSION_STORE", "Sessão reiniciada", {
+      sessao_id: sessao.sessao_id,
+      total_tokens: sessao.tokens_autorizados.length,
+    });
+
+    return sessao;
   }
 
  

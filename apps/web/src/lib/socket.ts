@@ -1,5 +1,6 @@
 import { io, type Socket } from "socket.io-client"
 import type { ServerPlacar } from "@/src/lib/api"
+import { DURACAO_SEGUNDOS } from "@/src/lib/timer"
 
 export const SERVER_URL =
   process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3001"
@@ -7,12 +8,23 @@ export const SERVER_URL =
 /** Eventos recebidos do servidor (somente listeners no front). */
 export const SOCKET_EVENTS = {
   CONNECTION_ACK: "connection_ack",
+  SESSION_RESET: "session_reset",
 } as const
 
 export type { ServerPlacar }
 
-export interface ConnectionAck {
+export interface SessionTimerFields {
+  iniciada_em: number
+  duracao_segundos: number
+}
+
+export interface ConnectionAck extends SessionTimerFields {
   message: string
+  sessao_id: string
+  placar_atual: ServerPlacar
+}
+
+export interface SessionResetPayload extends SessionTimerFields {
   sessao_id: string
   placar_atual: ServerPlacar
 }
@@ -46,3 +58,5 @@ export function disconnectSocket(): void {
     socket.disconnect()
   }
 }
+
+export { DURACAO_SEGUNDOS }

@@ -7,6 +7,8 @@ import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { percentual, totalVotos, type Opcao } from "@/src/lib/assembly"
 import { useAssembly } from "@/src/hooks/use-assembly"
+import { useCronometro } from "@/src/hooks/use-cronometro"
+import { formatarTempo } from "@/src/lib/timer"
 import { cn } from "@/src/lib/utils"
 
 // ─── Cronômetro ───────────────────────────────────────────────────────────────

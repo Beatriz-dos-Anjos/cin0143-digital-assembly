@@ -9,11 +9,17 @@ export interface ServerPlacar {
   nao: number
 }
 
-export interface SessionResponse {
+export interface SessionTimerFields {
+  iniciada_em: number
+  duracao_segundos: number
+}
+
+export interface SessionResponse extends SessionTimerFields {
   sessao_id: string
   placar_atual: ServerPlacar
   total_autorizados: number
   total_votaram: number
+  votos_realizados?: { token: string; voto: string; timestamp: string }[]
 }
 
 export interface GenerateTokenResponse {
@@ -104,5 +110,20 @@ export async function castVote(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, opcao }),
     },
+  )
+}
+
+export interface ResetSessionResponse extends SessionTimerFields {
+  success: true
+  sessao_id: string
+  placar_atual: ServerPlacar
+}
+
+export async function resetSession(
+  sessaoId: string,
+): Promise<ResetSessionResponse> {
+  return request<ResetSessionResponse>(
+    `/api/sessions/${encodeURIComponent(sessaoId)}/reset`,
+    { method: "POST" },
   )
 }

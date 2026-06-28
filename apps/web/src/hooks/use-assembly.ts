@@ -12,6 +12,7 @@ import {
   placarChannel,
   SOCKET_EVENTS,
   type ConnectionAck,
+  type SessionResetPayload,
 } from "@/src/lib/socket"
 
 const EMPTY_PLACAR: Placar = { SIM: 0, NAO: 0 }
@@ -25,6 +26,7 @@ export function useSocketSession() {
 
   useEffect(() => {
     const socket = connectSocket()
+    let active = true
     let activePlacarChannel: string | null = null
 
     const onConnect = () => {
@@ -70,18 +72,37 @@ export function useSocketSession() {
       applySession(data.sessao_id, data.placar_atual)
     }
 
+    const onSessionReset = (data: SessionResetPayload) => {
+      applySession(data.sessao_id, data.placar_atual)
+    }
+
+    async function bootstrap() {
+      try {
+        const session = await getSession(DEFAULT_SESSAO_ID)
+        if (!active) return
+        applySession(session.sessao_id, session.placar_atual)
+      } catch {
+        // connection_ack ou reconexão podem hidratar depois
+      }
+    }
+
+    void bootstrap()
+
     socket.on("connect", onConnect)
     socket.on("disconnect", onDisconnect)
     socket.on(SOCKET_EVENTS.CONNECTION_ACK, onConnectionAck)
+    socket.on(SOCKET_EVENTS.SESSION_RESET, onSessionReset)
 
     if (socket.connected) {
       onConnect()
     }
 
     return () => {
+      active = false
       socket.off("connect", onConnect)
       socket.off("disconnect", onDisconnect)
       socket.off(SOCKET_EVENTS.CONNECTION_ACK, onConnectionAck)
+      socket.off(SOCKET_EVENTS.SESSION_RESET, onSessionReset)
 
       if (activePlacarChannel) {
         socket.off(activePlacarChannel, onPlacar)
