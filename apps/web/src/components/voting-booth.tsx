@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import {
   AlertCircle,
   ArrowLeft,
@@ -13,60 +13,15 @@ import {
 } from "lucide-react"
 import { type Opcao } from "@/src/lib/assembly"
 import { useVoter } from "@/src/hooks/use-voter"
-import { API_URL } from "@/src/lib/api"
+import { useCronometro, syncSessionTimer } from "@/src/hooks/use-cronometro"
+import {
+  ApiRequestError,
+  DEFAULT_SESSAO_ID,
+  getSession,
+  resetSession,
+} from "@/src/lib/api"
+import { formatarTempo } from "@/src/lib/timer"
 import { cn } from "@/src/lib/utils"
-
-const TIMER_KEY = "assembleia:timer_inicio";
-const DURACAO_SEGUNDOS = 180;
-
-function formatarTempo(segundos: number): string {
-  const m = Math.floor(segundos / 60);
-  const s = segundos % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function lerOuCriarInicio(): number {
-  try {
-    const salvo = localStorage.getItem(TIMER_KEY);
-    if (salvo) return Number(salvo);
-    const novo = Date.now();
-    localStorage.setItem(TIMER_KEY, String(novo));
-    return novo;
-  } catch {
-    return Date.now();
-  }
-}
-
-function useCronometro(resetKey: number) {
-  const [segundosRestantes, setSegundosRestantes] = useState<number>(DURACAO_SEGUNDOS);
-  const inicioRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (resetKey > 0) {
-      try { localStorage.removeItem(TIMER_KEY); } catch {}
-    }
-
-    inicioRef.current = lerOuCriarInicio();
-
-    function calcRestantes() {
-      const decorrido = Math.floor((Date.now() - inicioRef.current) / 1000);
-      return Math.max(0, DURACAO_SEGUNDOS - decorrido);
-    }
-
-    setSegundosRestantes(calcRestantes());
-
-    const id = setInterval(() => {
-      const restantes = calcRestantes();
-      setSegundosRestantes(restantes);
-      if (restantes <= 0) clearInterval(id);
-    }, 1000);
-
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey]);
-
-  return { segundosRestantes, encerrada: segundosRestantes <= 0 };
-}
 
 const TOKENS_AUTORIZADOS_INICIAIS = [
   "550e8400-e29b-41d4-a716-446655440000",
@@ -92,32 +47,47 @@ export function VotingBooth() {
     gerandoToken,
     gerarToken,
     registrarVoto,
+    limparEstado,
+    mostrarErro,
   } = useVoter()
-  const [resetKey, setResetKey] = useState(0)
-  const { segundosRestantes, encerrada } = useCronometro(resetKey)
+  const [reiniciando, setReiniciando] = useState(false)
+  const { segundosRestantes, encerrada } = useCronometro(
+    sessaoId || DEFAULT_SESSAO_ID,
+  )
 
   const [tokensList, setTokensList] = useState<string[]>(TOKENS_AUTORIZADOS_INICIAIS)
   const [tokensVotados, setTokensVotados] = useState<string[]>([])
 
-  useEffect(() => {
-    if (token && !tokensList.includes(token)) {
-      setTokensList((prev) => [...prev, token])
-    }
-  }, [token, tokensList])
+  function adicionarTokenGerado(novoToken: string) {
+    setTokensList((prev) =>
+      prev.includes(novoToken) ? prev : [...prev, novoToken],
+    )
+  }
+
+  async function handleGerarToken() {
+    const novoToken = await gerarToken()
+    if (novoToken) adicionarTokenGerado(novoToken)
+  }
 
   useEffect(() => {
     let active = true
     async function carregarDadosSessao() {
       if (!connected) return
       try {
-        const res = await fetch(`${API_URL}/sessions/${sessaoId || "assembleia-2026-06"}`)
-        if (!res.ok) return
-        const data = await res.json()
+        const data = await getSession(sessaoId || DEFAULT_SESSAO_ID)
         if (!active) return
-        
+
+        syncSessionTimer({
+          iniciada_em: data.iniciada_em,
+          duracao_segundos: data.duracao_segundos,
+          sessao_id: data.sessao_id,
+        })
+
         if (data.votos_realizados) {
-          const votados = data.votos_realizados.map((v: any) => v.token)
+          const votados = data.votos_realizados.map((v: { token: string }) => v.token)
           setTokensVotados(votados)
+        } else {
+          setTokensVotados([])
         }
       } catch (err) {
         console.error("Erro ao carregar dados da sessao:", err)
@@ -137,14 +107,30 @@ export function VotingBooth() {
   const desabilitadoGerar =
     encerrada || !connected || gerandoToken || votando !== null
 
-  function handleReiniciar() {
-    setResetKey((k) => k + 1) 
-    setToken("")
-  }
+  async function handleReiniciar() {
+    if (reiniciando) return
 
-  async function gerarNovoToken() {
-    if (gerandoToken) return
-    await gerarToken()
+    limparEstado()
+    setTokensVotados([])
+    setTokensList([...TOKENS_AUTORIZADOS_INICIAIS])
+    setReiniciando(true)
+
+    try {
+      const result = await resetSession(sessaoId || DEFAULT_SESSAO_ID)
+      syncSessionTimer({
+        iniciada_em: result.iniciada_em,
+        duracao_segundos: result.duracao_segundos,
+        sessao_id: result.sessao_id,
+      })
+    } catch (error) {
+      const mensagem =
+        error instanceof ApiRequestError
+          ? error.message
+          : "Não foi possível reiniciar a sessão no servidor."
+      mostrarErro(mensagem)
+    } finally {
+      setReiniciando(false)
+    }
   }
 
   return (
@@ -197,7 +183,7 @@ export function VotingBooth() {
 
           <button
             type="button"
-            onClick={gerarToken}
+            onClick={handleGerarToken}
             disabled={desabilitadoGerar}
             className={cn(
               "mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground transition-all",
@@ -269,7 +255,7 @@ export function VotingBooth() {
         <button
           type="button"
           disabled={encerrada}
-          onClick={gerarNovoToken}
+          onClick={handleGerarToken}
           className={cn(
             "mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2.5 text-xs font-semibold text-secondary-foreground transition-all",
             "hover:bg-secondary/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/30",
@@ -284,19 +270,22 @@ export function VotingBooth() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {tokensList.map((t) => {
               const jaVotou = tokensVotados.includes(t)
+              const selecionado = t === token
               return (
                 <button
                   key={t}
                   type="button"
-                  disabled={encerrada || jaVotou}
+                  disabled={encerrada}
                   onClick={() => setToken(t)}
                   className={cn(
                     "rounded-lg border px-2 py-1.5 font-mono text-[10px] font-semibold transition-all text-center",
-                    jaVotou
-                      ? "border-red-500/15 bg-red-500/5 text-red-400 cursor-not-allowed opacity-50"
-                      : t === token
-                        ? "border-blue-500 bg-blue-500/10 text-blue-500"
-                        : "border-border hover:border-foreground/20 text-muted-foreground hover:text-foreground"
+                    selecionado
+                      ? jaVotou
+                        ? "border-red-500 bg-red-500/10 text-red-400"
+                        : "border-blue-500 bg-blue-500/10 text-blue-500"
+                      : jaVotou
+                        ? "border-red-500/15 bg-red-500/5 text-red-400 hover:border-red-500/40 hover:bg-red-500/10"
+                        : "border-border hover:border-foreground/20 text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {t}
@@ -314,9 +303,10 @@ export function VotingBooth() {
         </span>
         <button
           onClick={handleReiniciar}
-          className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground underline-offset-4 hover:underline"
+          disabled={reiniciando}
+          className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground underline-offset-4 hover:underline disabled:opacity-50"
         >
-          Reiniciar sessao
+          {reiniciando ? "Reiniciando…" : "Reiniciar sessao"}
         </button>
       </div>
     </div>

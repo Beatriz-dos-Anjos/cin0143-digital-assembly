@@ -12,9 +12,7 @@ import {
   RefreshCw,
   ChevronRight,
 } from "lucide-react"
-
-// Mesmo processo do console.ts, escutando HTTP nessa porta.
-const API_URL = "http://localhost:3002"
+import { API_URL, DEFAULT_SESSAO_ID } from "@/src/lib/api"
 
 type CommandId = "tokens" | "votes" | "placar" | "session"
 
@@ -82,7 +80,9 @@ export default function ComandosPage() {
     setResults((prev) => ({ ...prev, [cmd.id]: { status: "loading" } }))
 
     try {
-      const res = await fetch(`${API_URL}${cmd.endpoint}`)
+      const res = await fetch(
+        `${API_URL}${cmd.endpoint}?sessaoId=${encodeURIComponent(DEFAULT_SESSAO_ID)}`,
+      )
       if (!res.ok) {
         const body = await res.json().catch(() => null)
         throw new Error(body?.error ?? `Falha ao consultar (HTTP ${res.status})`)
@@ -129,7 +129,7 @@ export default function ComandosPage() {
         <div>
           <h1 className="text-2xl font-black tracking-tight">Comandos gerenciais</h1>
           <p className="text-sm text-muted-foreground">
-            Mesmos dados do console de autenticação, consultados via API.
+            Mesmos dados do console de autenticação, consultados via API do servidor.
           </p>
         </div>
       </div>

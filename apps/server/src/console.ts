@@ -1,7 +1,5 @@
 import * as readline from "readline";
 import { io, Socket } from "socket.io-client";
-import express from "express";
-import cors from "cors";
 import { PlacarAtual, VotoRegistrado } from "./domain/types";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://localhost:3001";
@@ -233,90 +231,13 @@ function setupSocketListeners(): void {
   });
 }
 
-// ──────────────────────────────────────────────────────────────────
-// ADIÇÃO: API HTTP no mesmo processo, para o frontend consultar.
-// Não toca em nada do que já existia acima. Usa o mesmo `socket`
-// e a mesma `placarAtual`, mas escuta as respostas de forma isolada
-// (uma Promise por chamada), sem depender do `pendingCommand`
-// global — assim não interfere com quem está digitando no terminal.
-// ──────────────────────────────────────────────────────────────────
-
-const API_PORT = process.env.API_PORT ?? 3002;
-
-function requestSessionData(): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("timeout")), 5000);
-    socket.once("session_data", (data: any) => {
-      clearTimeout(timeout);
-      resolve(data);
-    });
-    socket.emit("session_request");
-  });
-}
-
-function requestVotes(): Promise<{ votos: VotoRegistrado[] }> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("timeout")), 5000);
-    socket.once("list_votes_response", (data: any) => {
-      clearTimeout(timeout);
-      resolve(data);
-    });
-    socket.emit("list_votes_request");
-  });
-}
-
-function startApi(): void {
-  const app = express();
-  app.use(cors());
-
-  // equivalente a LIST_TOKENS
-  app.get("/api/tokens", async (_req, res) => {
-    try {
-      const data = await requestSessionData();
-      res.json({ tokens_autorizados: data.tokens_autorizados });
-    } catch {
-      res.status(502).json({ error: "Falha ao consultar tokens" });
-    }
-  });
-
-  // equivalente a LIST_VOTES
-  app.get("/api/votes", async (_req, res) => {
-    try {
-      const data = await requestVotes();
-      res.json(data);
-    } catch {
-      res.status(502).json({ error: "Falha ao consultar votos" });
-    }
-  });
-
-  // equivalente a PLACAR
-  app.get("/api/placar", (_req, res) => {
-    res.json(placarAtual);
-  });
-
-  // equivalente a SESSION
-  app.get("/api/session", async (_req, res) => {
-    try {
-      const data = await requestSessionData();
-      res.json(data);
-    } catch {
-      res.status(502).json({ error: "Falha ao consultar sessão" });
-    }
-  });
-
-  app.listen(API_PORT, () => {
-    console.log(`API HTTP para o frontend disponível em http://localhost:${API_PORT}`);
-  });
-}
-
 function startConsole(): void {
   clearConsole();
 
   console.log(`Conectando ao servidor de votação em ${SERVER_URL}...`);
   socket = io(SERVER_URL);
-  
+
   setupSocketListeners();
-  startApi();
 
   rl = readline.createInterface({
     input: process.stdin,

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { isValidTokenFormat, toServerOpcao, type Opcao } from "@/src/lib/assembly"
+import { toServerOpcao, type Opcao } from "@/src/lib/assembly"
 import {
   ApiRequestError,
   checkHealth,
@@ -65,14 +65,14 @@ export function useVoter() {
     }
   }, [])
 
-  const gerarToken = useCallback(async () => {
-    await enqueueExclusive(async () => {
+  const gerarToken = useCallback(async (): Promise<string | null> => {
+    return enqueueExclusive(async () => {
       if (!connected) {
         setFeedback({
           tipo: "erro",
           mensagem: "Sem conexão com o servidor. Aguarde ou recarregue a página.",
         })
-        return
+        return null
       }
 
       setFeedback(null)
@@ -83,12 +83,14 @@ export function useVoter() {
         const data = await generateToken(sessaoId || DEFAULT_SESSAO_ID)
         setToken(data.token)
         setSessaoId(data.sessao_id)
+        return data.token
       } catch (error) {
         const mensagem =
           error instanceof ApiRequestError
             ? error.message
             : "Não foi possível gerar o token."
         setFeedback({ tipo: "erro", mensagem })
+        return null
       } finally {
         setGerandoToken(false)
       }
@@ -110,14 +112,6 @@ export function useVoter() {
           setFeedback({
             tipo: "erro",
             mensagem: "Informe um token antes de votar.",
-          })
-          return
-        }
-
-        if (!isValidTokenFormat(tokenValue)) {
-          setFeedback({
-            tipo: "erro",
-            mensagem: "Token inválido. Use o código completo fornecido pela assembleia.",
           })
           return
         }
@@ -157,6 +151,16 @@ export function useVoter() {
     [token, connected, enqueueExclusive, sessaoId],
   )
 
+  const limparEstado = useCallback(() => {
+    setToken("")
+    setFeedback(null)
+    setVotando(null)
+  }, [])
+
+  const mostrarErro = useCallback((mensagem: string) => {
+    setFeedback({ tipo: "erro", mensagem })
+  }, [])
+
   return {
     token,
     setToken: alterarToken,
@@ -167,5 +171,7 @@ export function useVoter() {
     gerandoToken,
     gerarToken,
     registrarVoto,
+    limparEstado,
+    mostrarErro,
   }
 }

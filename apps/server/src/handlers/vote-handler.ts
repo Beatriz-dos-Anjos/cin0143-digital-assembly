@@ -70,18 +70,19 @@ export function logUnauthorizedVote(
   context: VoteContext,
   payload: string
 ): void {
-  logger.error("VOTE_VALIDATION", "Tentativa de votação com token não autorizado", {
+  logger.error("VOTE_VALIDATION", "Tentativa de votação com token não autorizado rejeitada", {
+    tipo_erro: "TOKEN_NAO_AUTORIZADO",
     token: token.substring(0, 8) + "***",
     sessao_id: context.sessao_id,
     ip_cliente: context.ip,
     acao_tomada: "Voto rejeitado",
   });
 
-  logger.alert("SEGURANCA", "Possível tentativa de fraude detectada", {
+  logger.auditoria("AUDITORIA", "Tentativa de votação com token não autorizado detectada", {
     tipo: "TOKEN_NAO_AUTORIZADO",
     token_suspeito: token.substring(0, 8) + "***",
     ip_origem: context.ip,
-    status: "Flagged para investigação",
+    status: "Monitorado",
   });
 }
 
@@ -116,11 +117,24 @@ export function logDuplicateVote(
 }
 
 export function logInvalidFormat(payload: string, context: VoteContext): void {
-  logger.warning("VOTE_VALIDATION", "Payload malformado rejeitado", {
-    socket_id: context.socket_id,
+  const tokenMatch = payload.match(/^CAST_VOTE\|([^|]*)\|/);
+  const tokenRaw = tokenMatch?.[1]?.trim() ?? "";
+  const tokenDisplay =
+    tokenRaw.length > 0 ? `${tokenRaw.substring(0, 8)}***` : "malformado";
+
+  logger.error("VOTE_VALIDATION", "Tentativa de votação com token inválido rejeitada", {
+    tipo_erro: "FORMATO_INVALIDO",
+    token: tokenDisplay,
+    sessao_id: context.sessao_id,
     ip_cliente: context.ip,
     payload_length: payload.length,
     acao_tomada: "Voto rejeitado",
+  });
+
+  logger.auditoria("AUDITORIA", "Tentativa de votação com token inválido detectada", {
+    token_suspeito: tokenDisplay,
+    ip_origem: context.ip,
+    status: "Monitorado",
   });
 }
 
